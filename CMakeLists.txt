@@ -128,14 +128,15 @@ target_link_libraries(ros_plane_path_manager
 )
 
 ## Declare a C++ executable
-add_executable(ros_plane_path_planner
-            src/path_planner.cpp
-)
+#add_executable(ros_plane_path_planner
+#            src/path_planner.cpp
+#)
+
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(ros_plane_path_planner ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+#add_dependencies(ros_plane_path_planner ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(ros_plane_path_planner
-  ${catkin_LIBRARIES}
-)
+#target_link_libraries(ros_plane_path_planner
+#  ${catkin_LIBRARIES}
+#)
