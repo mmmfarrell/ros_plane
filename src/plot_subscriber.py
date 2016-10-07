@@ -8,7 +8,7 @@ from rosgraph_msgs.msg import Clock
 #stuff we need for plotting
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.integrate as integrate
+#import scipy.integrate as integrate
 import matplotlib.animation as animation
 
 class state_subscriber():
