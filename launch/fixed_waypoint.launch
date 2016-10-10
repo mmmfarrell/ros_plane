@@ -55,7 +55,7 @@
   </node>
 
   <node name="chase" pkg="image_view" type="image_view">
-    <remap from="image" to="/junker/chase/camera/rgb"/>
+    <remap from="image" to="/junker/camera/chase/rgb"/>
   </node>
 
   <!--<node name="reconfig" pkg="rqt_reconfigure" type="rqt_reconfigure"/> -->
