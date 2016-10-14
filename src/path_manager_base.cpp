@@ -7,7 +7,7 @@ path_manager_base::path_manager_base():
     nh_(ros::NodeHandle()), /** nh_ stuff added here */
     nh_private_(ros::NodeHandle("~"))
 {
-    nh_private_.param<double>("R_min", params_.R_min, 20.0);
+    nh_private_.param<double>("R_min", params_.R_min, 100.0);
 
     _vehicle_state_sub = nh_.subscribe("state", 10, &path_manager_base::vehicle_state_callback, this);
 
@@ -41,26 +41,10 @@ void path_manager_base::vehicle_state_callback(const fcu_common::FW_StateConstPt
 /** Function to initialize waypoints until Path Planner can be developed */
 void path_manager_base::waypoint_init()
 {
-    _waypoints[_num_waypoints].w[0]      = 0;
-    _waypoints[_num_waypoints].w[1]      = 0;
-    _waypoints[_num_waypoints].w[2]      = -100;
-    _waypoints[_num_waypoints].chi_d     = -9999;
-    _waypoints[_num_waypoints].chi_valid = 0;
-    _waypoints[_num_waypoints].Va_d      = 35;
-    _num_waypoints++;
-
     _waypoints[_num_waypoints].w[0]      = 1000;
     _waypoints[_num_waypoints].w[1]      = 0;
     _waypoints[_num_waypoints].w[2]      = -100;
-    _waypoints[_num_waypoints].chi_d     = -9999;
-    _waypoints[_num_waypoints].chi_valid = 0;
-    _waypoints[_num_waypoints].Va_d      = 35;
-    _num_waypoints++;
-
-    _waypoints[_num_waypoints].w[0]      = 1000;
-    _waypoints[_num_waypoints].w[1]      = 1000;
-    _waypoints[_num_waypoints].w[2]      = -100;
-    _waypoints[_num_waypoints].chi_d     = -9999;
+    _waypoints[_num_waypoints].chi_d     = 0;
     _waypoints[_num_waypoints].chi_valid = 0;
     _waypoints[_num_waypoints].Va_d      = 35;
     _num_waypoints++;
@@ -68,7 +52,23 @@ void path_manager_base::waypoint_init()
     _waypoints[_num_waypoints].w[0]      = 0;
     _waypoints[_num_waypoints].w[1]      = 1000;
     _waypoints[_num_waypoints].w[2]      = -100;
-    _waypoints[_num_waypoints].chi_d     = -9999;
+    _waypoints[_num_waypoints].chi_d     = 0;
+    _waypoints[_num_waypoints].chi_valid = 0;
+    _waypoints[_num_waypoints].Va_d      = 35;
+    _num_waypoints++;
+
+    _waypoints[_num_waypoints].w[0]      = -1000;
+    _waypoints[_num_waypoints].w[1]      = 0;
+    _waypoints[_num_waypoints].w[2]      = -100;
+    _waypoints[_num_waypoints].chi_d     = 0;
+    _waypoints[_num_waypoints].chi_valid = 0;
+    _waypoints[_num_waypoints].Va_d      = 35;
+    _num_waypoints++;
+
+    _waypoints[_num_waypoints].w[0]      = 0;
+    _waypoints[_num_waypoints].w[1]      = -1000;
+    _waypoints[_num_waypoints].w[2]      = -100;
+    _waypoints[_num_waypoints].chi_d     = 0;
     _waypoints[_num_waypoints].chi_valid = 0;
     _waypoints[_num_waypoints].Va_d      = 35;
     _num_waypoints++;
@@ -76,7 +76,7 @@ void path_manager_base::waypoint_init()
     _waypoints[_num_waypoints].w[0]      = 0;
     _waypoints[_num_waypoints].w[1]      = 0;
     _waypoints[_num_waypoints].w[2]      = 0;
-    _waypoints[_num_waypoints].chi_d     = -9999;
+    _waypoints[_num_waypoints].chi_d     = 0;
     _waypoints[_num_waypoints].chi_valid = 0;
     _waypoints[_num_waypoints].Va_d      = 35;
     _num_waypoints++;
