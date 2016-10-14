@@ -9,12 +9,12 @@ int main(int argc, char** argv) {
     ros::NodeHandle nh_;
     ros::Publisher waypointPublisher = nh_.advertise<fcu_common::FW_Waypoint>("waypoint_path",10);
 
-    float Va = 8.5;//11;
+    float Va = 30;//11;
     float wps[5*num_waypoints] = {
-                -10, -10, -30, -45, Va,
-                -10, -125, -30, -135*M_PI/180, Va,
-                -125, -10, -30, 45*M_PI/180, Va,
-                -125, -125, -30, 135*M_PI/180, Va,
+                500, 0, -100, 0, Va,
+                750, 0, -100, 0, Va,
+                1500, -50, -100, 0, Va,
+                3000, -50, -100, 0, Va,
                };
 
     for(int i(0);i<num_waypoints;i++)
