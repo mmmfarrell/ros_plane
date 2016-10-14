@@ -12,6 +12,9 @@ def talker():
 	
 	waypointPublisher = rospy.Publisher('waypoint_path',FW_Waypoint, queue_size=10)
 	
+	d = rospy.Duration(.5) 
+	rospy.sleep(d)
+
 	Va = 8.5 # 11.0
 	wps =  [
                 -10, -10, -30, -45, Va,
@@ -19,6 +22,7 @@ def talker():
                 -125, -10, -30, 45*math.pi/180, Va,
                 -125, -125, -30, 135*math.pi/180, Va]
 	for i in range(0,num_waypoints):
+
 		new_waypoint = FW_Waypoint()
 		
 		new_waypoint.w[0] = wps[i*5 + 0]
