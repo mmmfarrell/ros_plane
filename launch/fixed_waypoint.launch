@@ -45,7 +45,7 @@
   </node>
 
   <node name="estimator" pkg="ros_plane" type="ros_plane_estimator" output="screen">
-    <remap from="/baro/data" to="/junker/baro/data"/>
+    <remap from="/baro/alt" to="/junker/baro/data"/>
     <remap from="/imu/data" to="/junker/imu/data"/>
     <remap from="/airspeed/data" to="/junker/airspeed/data"/>
   </node>
