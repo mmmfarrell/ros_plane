@@ -18,6 +18,45 @@ class path_manager_base:
 
 	# void
 	def self.waypoint_init():
+		_waypoints[_num_waypoints].w[0]  	 = 0
+	    _waypoints[_num_waypoints].w[1]      = 0
+	    _waypoints[_num_waypoints].w[2]      = -100
+	    _waypoints[_num_waypoints].chi_d     = -9999
+	    _waypoints[_num_waypoints].chi_valid = 0
+	    _waypoints[_num_waypoints].Va_d      = 35
+	    _num_waypoints+=1
+
+	    _waypoints[_num_waypoints].w[0]      = 1000
+	    _waypoints[_num_waypoints].w[1]      = 0
+	    _waypoints[_num_waypoints].w[2]      = -100
+	    _waypoints[_num_waypoints].chi_d     = -9999
+	    _waypoints[_num_waypoints].chi_valid = 0
+	    _waypoints[_num_waypoints].Va_d      = 35
+	    _num_waypoints+=1
+
+	    _waypoints[_num_waypoints].w[0]      = 1000
+	    _waypoints[_num_waypoints].w[1]      = 1000
+	    _waypoints[_num_waypoints].w[2]      = -100
+	    _waypoints[_num_waypoints].chi_d     = -9999
+	    _waypoints[_num_waypoints].chi_valid = 0
+	    _waypoints[_num_waypoints].Va_d      = 35
+	    _num_waypoints+=1
+
+	    _waypoints[_num_waypoints].w[0]      = 0
+	    _waypoints[_num_waypoints].w[1]      = 1000
+	    _waypoints[_num_waypoints].w[2]      = -100
+	    _waypoints[_num_waypoints].chi_d     = -9999
+	    _waypoints[_num_waypoints].chi_valid = 0
+	    _waypoints[_num_waypoints].Va_d      = 35
+	    _num_waypoints+=1
+
+	    _waypoints[_num_waypoints].w[0]      = 0
+	    _waypoints[_num_waypoints].w[1]      = 0
+	    _waypoints[_num_waypoints].w[2]      = 0
+	    _waypoints[_num_waypoints].chi_d     = -9999
+	    _waypoints[_num_waypoints].chi_valid = 0
+	    _waypoints[_num_waypoints].Va_d      = 35
+	    _num_waypoints+=1
 
 ###### protected
 	# struct waypoint_s
@@ -31,10 +70,11 @@ class path_manager_base:
  #    struct waypoint_s* _ptr_a;
 
  	# struct input_s
- 	self.input_s.pn = 0.0 # position North
- 	self.input_s.pe = 0.0 # position East
- 	self.input_s.h = 0.0 # Altitude
- 	self.input_s.chi = 0.0 # course angle
+ 	class input_s:
+	 	self.pn = 0.0 # position North
+	 	self.pe = 0.0 # position East
+	 	self.h = 0.0 # Altitude
+	 	self.chi = 0.0 # course angle
 
  	# struct output_s
  	self.output_s.flag = True # Inicates strait line or orbital path (true is line, false is orbit)
@@ -62,6 +102,47 @@ class path_manager_base:
 
   	self._vehicle_state = FW_State()
 
+  	def vehicle_state_callback(msg):
+  		_vehicle_state = msg
+  		inpt = self.input_s()
+  		inpt.pn = _vehicle_state.position[0]
+  		inpt.pe = _vehicle_state.position[1]
+  		inpt.h = -_vehicle_state.position[2]
+  		inpt.chi = _vehicle_state.chi
+
+  		# cpp code
+	    # struct output_s outputs;
+	    # struct params_s params;
+	    # manage(params, input, outputs);
+	    # current_path_publish(outputs);
+
+  	def new_waypoint_callback(msg):
+  		_waypoints[_num_waypoints].w[0]      = msg.w[0]
+	    _waypoints[_num_waypoints].w[1]      = msg.w[1]
+	    _waypoints[_num_waypoints].w[2]      = msg.w[2]
+	    _waypoints[_num_waypoints].chi_d     = msg.chi_d
+	    _waypoints[_num_waypoints].chi_valid = msg.chi_valid
+	    _waypoints[_num_waypoints].Va_d      = msg.Va_d
+	    _num_waypoints+=1
+
+	def current_path_publsih(output):
+		current_path = FW_Current_Path()
+
+		current_path.flag = output.flag
+		current_path.Va_d = output.Va_d
+
+		for i in range(0,3):
+			current_path.r[i] = output.r[i]
+			current_path.q[i] = output.q[i]
+			current_path.c[i] = output.c[i]
+
+		current_path.rho = output.rho
+		current_path.lambda = output.lambda
+
+		_current_path_pub.publish(current_path)
+
+
   	# void vehicle_state_callback(const fcu_common::FW_StateConstPtr& msg);
    #  void new_waypoint_callback(const fcu_common::FW_Waypoint &msg);
+
    #  void current_path_publish(struct output_s &output);
