@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Python implementation of "path_manager"
-# path_manager_base.h
+# path_manager_base.h & path_manager_base.py
 
 import rospy
 from fcu_common.msg import FW_State, FW_Current_Path, FW_Waypoint
