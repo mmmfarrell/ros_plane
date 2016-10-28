@@ -7,22 +7,30 @@ import math
 
 num_waypoints = 4
 
-def talker():
+def publishwaypoints():
+
+	# Init ROS Node
 	rospy.init_node('ros_plane_path_planner', anonymous=True)
 	
-	waypointPublisher = rospy.Publisher('waypoint_path',FW_Waypoint, queue_size=10)
+	# Init Publisher
+	waypointPublisher = rospy.Publisher('/waypoint_path',FW_Waypoint, queue_size=10)
 	
+	# Sleep, (this fixed bug of first waypoint not publishing)
 	d = rospy.Duration(.5) 
 	rospy.sleep(d)
 
+	# Set waypoints
 	Va = 8.5 # 11.0
 	wps =  [
                 -10, -10, -30, -45, Va,
                 -10, -125, -30, -135*math.pi/180, Va,
                 -125, -10, -30, 45*math.pi/180, Va,
                 -125, -125, -30, 135*math.pi/180, Va]
+	
+    # Loop through each waypoint
 	for i in range(0,num_waypoints):
 
+		# Make waypoint a FW_Waypoint msg
 		new_waypoint = FW_Waypoint()
 		
 		new_waypoint.w[0] = wps[i*5 + 0]
@@ -33,14 +41,18 @@ def talker():
 		new_waypoint.chi_valid = True # False
 		new_waypoint.Va_d = wps[i*5 + 4]
 		
+		# Publish the Waypoint
 		waypointPublisher.publish(new_waypoint)
 		
+		# Sleep
 		d = rospy.Duration(0.5)
 		rospy.sleep(d)
 						
 
 if __name__ == '__main__':
+
+	# Just run the publisher once
 	try:
-		talker()
+		publishwaypoints()
 	except rospy.ROSInterruptException:
 		pass

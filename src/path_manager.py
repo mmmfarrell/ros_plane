@@ -10,122 +10,118 @@ import math
 #import Eigen
 #from ros_plane import ControllerConfig
 
-#define SIZE_WAYPOINT_ARRAY 20
+SIZE_WAYPOINT_ARRAY = 20
+
 class path_manager_base:
 
-###### public
-	def self.path_manager_base():
+	# Init function
+	def __init__(self):
+		# R_min param
 
-	# void
-	def self.waypoint_init():
-		_waypoints[_num_waypoints].w[0]  	 = 0
-	    _waypoints[_num_waypoints].w[1]      = 0
-	    _waypoints[_num_waypoints].w[2]      = -100
-	    _waypoints[_num_waypoints].chi_d     = -9999
-	    _waypoints[_num_waypoints].chi_valid = 0
-	    _waypoints[_num_waypoints].Va_d      = 35
-	    _num_waypoints+=1
+		# inititlialize subscribers
+		self._vehicle_state_sub = rospy.Subscriber('state', FW_State, self.vehicle_state_callback)
+		self._new_waypoint_sub = rospy.Subscriber('waypoint_path', FW_Waypoint, self.new_waypoint_callback)
 
-	    _waypoints[_num_waypoints].w[0]      = 1000
-	    _waypoints[_num_waypoints].w[1]      = 0
-	    _waypoints[_num_waypoints].w[2]      = -100
-	    _waypoints[_num_waypoints].chi_d     = -9999
-	    _waypoints[_num_waypoints].chi_valid = 0
-	    _waypoints[_num_waypoints].Va_d      = 35
-	    _num_waypoints+=1
+		# Init Publishers
+		self._current_path_pub = rospy.Subscriber('current_path', FW_Current_Path, queue_size=10)
 
-	    _waypoints[_num_waypoints].w[0]      = 1000
-	    _waypoints[_num_waypoints].w[1]      = 1000
-	    _waypoints[_num_waypoints].w[2]      = -100
-	    _waypoints[_num_waypoints].chi_d     = -9999
-	    _waypoints[_num_waypoints].chi_valid = 0
-	    _waypoints[_num_waypoints].Va_d      = 35
-	    _num_waypoints+=1
+	# Class members
+	_num_waypoints = 0
+	_vehicle_state = FW_State()
+	_waypoints = [waypoint_s() for _ in range(SIZE_WAYPOINT_ARRAY)]
 
-	    _waypoints[_num_waypoints].w[0]      = 0
-	    _waypoints[_num_waypoints].w[1]      = 1000
-	    _waypoints[_num_waypoints].w[2]      = -100
-	    _waypoints[_num_waypoints].chi_d     = -9999
-	    _waypoints[_num_waypoints].chi_valid = 0
-	    _waypoints[_num_waypoints].Va_d      = 35
-	    _num_waypoints+=1
+	# Subclasses
+	class waypoint_s:
+		w = [0.0, 0.0, 0.0]
+		chi_d = 0.0
+		chi_valid = True
+		Va_d = 0.0
 
-	    _waypoints[_num_waypoints].w[0]      = 0
-	    _waypoints[_num_waypoints].w[1]      = 0
-	    _waypoints[_num_waypoints].w[2]      = 0
-	    _waypoints[_num_waypoints].chi_d     = -9999
-	    _waypoints[_num_waypoints].chi_valid = 0
-	    _waypoints[_num_waypoints].Va_d      = 35
-	    _num_waypoints+=1
 
-###### protected
-	# struct waypoint_s
-	self.waypoint_s.w = []
-	self.waypoint_s.chi_d = 0.0
-	self.waypoint_s.chi_valid = True
-	self.waypoint_s.Va_d = 0.0
-
-	# struct waypoint_s _waypoints[SIZE_WAYPOINT_ARRAY];
- #    int _num_waypoints;
- #    struct waypoint_s* _ptr_a;
-
- 	# struct input_s
  	class input_s:
-	 	self.pn = 0.0 # position North
-	 	self.pe = 0.0 # position East
-	 	self.h = 0.0 # Altitude
-	 	self.chi = 0.0 # course angle
+	 	pn = 0.0 # position North
+	 	pe = 0.0 # position East
+	 	h = 0.0 # Altitude
+	 	chi = 0.0 # course angle
 
- 	# struct output_s
- 	self.output_s.flag = True # Inicates strait line or orbital path (true is line, false is orbit)
- 	self.output_s.Va_d = 0.0 # Desired airspeed (m/s)
- 	self.output_s.r = [] # Vector to origin of straight line path (m)
- 	self.output_s.q = [] # Unit vector, desired direction of travel for line path
- 	self.output_s.c = [] # Center of orbital path (m)
- 	self.output_s.rho = 0.0 # Radius of orbital path (m)
- 	self.output_s.lambda = 1 # Direction of orbital path (cw is 1, ccw is -1)
+ 	class output_s:
+	 	flag = True # Inicates strait line or orbital path (true is line, false is orbit)
+	 	Va_d = 0.0 # Desired airspeed (m/s)
+	 	r = [] # Vector to origin of straight line path (m)
+	 	q = [] # Unit vector, desired direction of travel for line path
+	 	c = [] # Center of orbital path (m)
+	 	rho = 0.0 # Radius of orbital path (m)
+	 	lambdaa = 1 # Direction of orbital path (cw is 1, ccw is -1)
 
- 	# struct param_s
- 	self.param_s.R_min = 0.0
+ 	class param_s:
+ 		R_min = 0.0
 
- 	#     virtual void manage(const struct params_s &params, const struct input_s &input, struct output_s &output) = 0;
 
-##### private
-	# ros::NodeHandle nh_;
- #    ros::NodeHandle nh_private_;
+ 	# Class Member Functions
+	def waypoint_init(self):
+		_waypoints[_num_waypoints].w[0]  	 = 0
+		_waypoints[_num_waypoints].w[1]      = 0
+		_waypoints[_num_waypoints].w[2]      = -100
+		_waypoints[_num_waypoints].chi_d     = -9999
+		_waypoints[_num_waypoints].chi_valid = 0
+		_waypoints[_num_waypoints].Va_d      = 35
+		_num_waypoints+=1
 
- 	# ros::NodeHandle nh_;
-  #   ros::NodeHandle nh_private_;
-  #   ros::Subscriber _vehicle_state_sub;     /**< vehicle state subscription */
-  #   ros::Subscriber _new_waypoint_sub;      /**< new waypoint subscription */
-  #   ros::Publisher  _current_path_pub;      /**< controller commands publication */
+		_waypoints[_num_waypoints].w[0]      = 1000
+		_waypoints[_num_waypoints].w[1]      = 0
+		_waypoints[_num_waypoints].w[2]      = -100
+		_waypoints[_num_waypoints].chi_d     = -9999
+		_waypoints[_num_waypoints].chi_valid = 0
+		_waypoints[_num_waypoints].Va_d      = 35
+		_num_waypoints+=1
 
-  	self._vehicle_state = FW_State()
+		_waypoints[_num_waypoints].w[0]      = 1000
+		_waypoints[_num_waypoints].w[1]      = 1000
+		_waypoints[_num_waypoints].w[2]      = -100
+		_waypoints[_num_waypoints].chi_d     = -9999
+		_waypoints[_num_waypoints].chi_valid = 0
+		_waypoints[_num_waypoints].Va_d      = 35
+		_num_waypoints+=1
 
-  	def vehicle_state_callback(msg):
-  		_vehicle_state = msg
-  		inpt = self.input_s()
-  		inpt.pn = _vehicle_state.position[0]
-  		inpt.pe = _vehicle_state.position[1]
-  		inpt.h = -_vehicle_state.position[2]
-  		inpt.chi = _vehicle_state.chi
+		_waypoints[_num_waypoints].w[0]      = 0
+		_waypoints[_num_waypoints].w[1]      = 1000
+		_waypoints[_num_waypoints].w[2]      = -100
+		_waypoints[_num_waypoints].chi_d     = -9999
+		_waypoints[_num_waypoints].chi_valid = 0
+		_waypoints[_num_waypoints].Va_d      = 35
+		_num_waypoints+=1
 
-  		# cpp code
-	    # struct output_s outputs;
-	    # struct params_s params;
-	    # manage(params, input, outputs);
-	    # current_path_publish(outputs);
+		_waypoints[_num_waypoints].w[0]      = 0
+		_waypoints[_num_waypoints].w[1]      = 0
+		_waypoints[_num_waypoints].w[2]      = 0
+		_waypoints[_num_waypoints].chi_d     = -9999
+		_waypoints[_num_waypoints].chi_valid = 0
+		_waypoints[_num_waypoints].Va_d      = 35
+		_num_waypoints+=1
 
-  	def new_waypoint_callback(msg):
-  		_waypoints[_num_waypoints].w[0]      = msg.w[0]
-	    _waypoints[_num_waypoints].w[1]      = msg.w[1]
-	    _waypoints[_num_waypoints].w[2]      = msg.w[2]
-	    _waypoints[_num_waypoints].chi_d     = msg.chi_d
-	    _waypoints[_num_waypoints].chi_valid = msg.chi_valid
-	    _waypoints[_num_waypoints].Va_d      = msg.Va_d
-	    _num_waypoints+=1
+  	def vehicle_state_callback(self, msg):
+		self._vehicle_state = msg
+		inpt = self.input_s()
+		inpt.pn = self._vehicle_state.position[0]
+		inpt.pe = self._vehicle_state.position[1]
+		inpt.h = -self._vehicle_state.position[2]
+		inpt.chi = self._vehicle_state.chi
 
-	def current_path_publsih(output):
+		outputs = self.output_s()
+		params = self.params_s()
+		# manage(params, input, outputs)
+		# self.current_path_publisher(outputs)
+
+  	def new_waypoint_callback(self, msg):
+		self._waypoints[self._num_waypoints].w[0]      = msg.w[0]
+		self._waypoints[self._num_waypoints].w[1]      = msg.w[1]
+		self._waypoints[self._num_waypoints].w[2]      = msg.w[2]
+		self._waypoints[self._num_waypoints].chi_d     = msg.chi_d
+		self._waypoints[self._num_waypoints].chi_valid = msg.chi_valid
+		self._waypoints[self._num_waypoints].Va_d      = msg.Va_d
+		self._num_waypoints+=1
+
+	def current_path_publsih(self, output):
 		current_path = FW_Current_Path()
 
 		current_path.flag = output.flag
@@ -137,12 +133,6 @@ class path_manager_base:
 			current_path.c[i] = output.c[i]
 
 		current_path.rho = output.rho
-		current_path.lambda = output.lambda
+		current_path.lambdaa = output.lambdaa
 
 		_current_path_pub.publish(current_path)
-
-
-  	# void vehicle_state_callback(const fcu_common::FW_StateConstPtr& msg);
-   #  void new_waypoint_callback(const fcu_common::FW_Waypoint &msg);
-
-   #  void current_path_publish(struct output_s &output);
