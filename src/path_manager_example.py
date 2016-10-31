@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
-import path_manager_base
+from path_manager_base import path_manager_base
 import numpy as np
-import math as *
+import rospy
+from math import *
 
 M_PI_F = 3.14159265358979323846
 M_PI_2_F = 1.57079632679489661923
@@ -11,6 +12,7 @@ class path_manager_example(path_manager_base):
 
 	# Init
 	def __init__(self):
+		print 'Example Init'
 		path_manager_base.__init__(self)
 
 
@@ -34,13 +36,14 @@ class path_manager_example(path_manager_base):
 
 	# Member objects
 	dubinspath = dubinspath_s()
+	index_a = 0
 
 	# functions
 	def manage(self, params, inpt, output):
 
 		if (self._num_waypoints < 2):
 			output.flag = true
-			output.Va_d = 9
+			output.Va_d = 9			# default airspeed to fly to One Waypoint
 			output.r[0] = inpt.pn
 			output.r[1] = inpt.pe
 			output.r[2] = -inpt.h
@@ -53,15 +56,46 @@ class path_manager_example(path_manager_base):
 			output.rho = 0
 			output.lambdaa = 0
 		else:
-			################ FIX THISSS###############
-			if (_ptr_a->chi_valid):
+			################ FIX THISSS ###############
+			if False: #(self._waypoints[0].chi_valid)#(_ptr_a->chi_valid):
+				print 'Manage -- Dubins'
 				self.manage_dubins(params, inpt, output)
 			else:
-				# manage_line(params,inpt,output)
-				self.manage_fillet(params,inpt,output)
+				print 'Manage -- Line'
+				self.manage_line(params,inpt,output)
+				# print 'Manage -- Fillet'
+				# self.manage_fillet(params,inpt,output)
 
 	def manage_line(self, params, inpt, output):
+		print 'Def Manage Line 2'
+		print 'here'
 		p = np.array([inpt.pn, inpt.pe, -inpt.h])
+		print 'here1'
+		a = self._waypoints[self.index_a]
+		b = self.waypoint_s()
+		c = self.waypoint_s()
+		print 'here'
+		if (self.index_a == (self._num_waypoints - 1)):
+			b = self._waypoints[0]
+			c = self._waypoints[1]
+		elif (self.index_a == (self._num_waypoints - 2)):
+			b = self._waypoints[self._num_waypoints - 1]
+			c = self._waypoints[0]
+		else:
+			b = self._waypoints[self.index_a + 1]
+			c = self._waypoints[self.index_a + 2]
+		print self.index_a
+		print a
+		print b
+		print 'Done'
+
+
+
+	def manage_fillet(self, params, inpt, output):
+		print 'Def Manage Fillet'
+
+	def manage_dubins(self, params, inpt, output):
+		print 'Def Manage Dubins'
 
 	def rotz(self, theta):
 		R = np.matrix([cos(theta), -sin(theta), 0.0],
@@ -71,7 +105,7 @@ class path_manager_example(path_manager_base):
 
 	def mo(self,inpt):
 		val = 0.0
-		if (in > 0):
+		if (inpt > 0):
 			val = fmod(inpt, 2*M_PI_F)
 		else:
 			n = 0.0
@@ -108,33 +142,33 @@ class path_manager_example(path_manager_base):
 
 			# compute L1
 			theta = atan2(cre[1] - crs[1], cre[0] - crs[0])
-			L1 = (crs - cre).size() + R*self.mo(2*M_PI_F + self.mo(theta - M_PI_2_F) - self.mo(self._dubinspath.chis - M_PI_2_F))
-                + R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chie - M_PI_2_F) - self.mo(theta - M_PI_2_F))
+			L1 = (crs - cre).size() + R*self.mo(2*M_PI_F + self.mo(theta - M_PI_2_F) - self.mo(self._dubinspath.chis - M_PI_2_F)) + \
+                R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chie - M_PI_2_F) - self.mo(theta - M_PI_2_F))
 
             # compute L2
 			ell = (cle - crs).size()
 			theta = atan2(cle[1] - crs[1], cle[0] - crs[0])
-			if(2*R/ell > 1.0 || 2*R/ell < -1.0):
+			if(2*R/ell > 1.0 or 2*R/ell < -1.0):
 				L2 = 9999.0;
 			else:
-				theta2 = theta - M_PI_2_F + asin(2*R/ell);
-				L2 = sqrt(ell*ell - 4*R*R) + R*self.mo(2*M_PI_F + self.mo(theta2) - self.mo(self._dubinspath.chis - M_PI_2_F))
-				    + R*self.mo(2*M_PI_F + self.mo(theta2 + M_PI_F) - self.mo(self._dubinspath.chie + M_PI_2_F));
+				theta2 = theta - M_PI_2_F + asin(2*R/ell)
+				L2 = sqrt(ell*ell - 4*R*R) + R*self.mo(2*M_PI_F + self.mo(theta2) - self.mo(self._dubinspath.chis - M_PI_2_F)) + \
+				   R*self.mo(2*M_PI_F + self.mo(theta2 + M_PI_F) - self.mo(self._dubinspath.chie + M_PI_2_F))
 
 		    # compute L3
 			ell = (cre - clss).size()
 			theta = atan2(cre[1] - clss[1], cre[0] - clss[0])
-			if (2*R/ell > 1.0 || 2*R/ell < -1.0):
+			if (2*R/ell > 1.0 or 2*R/ell < -1.0):
 				L3 = 9999.0
 			else:
 				theta2 = acos(2*R/ell)
-				L3 = sqrt(ell*ell - 4*R*R) + R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chis + M_PI_2_F) - self.mo(theta + theta2))
-			        + R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chie - M_PI_2_F) - self.mo(theta + theta2 - M_PI_F))
+				L3 = sqrt(ell*ell - 4*R*R) + R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chis + M_PI_2_F) - self.mo(theta + theta2)) + \
+			         R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chie - M_PI_2_F) - self.mo(theta + theta2 - M_PI_F))
 
 			# compute L4
 			theta = atan2(cle[1]-clss[1],cle[0]-clss[0])
-			L4 = (clss - cle).size() + R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chis + M_PI_2_F) - mo(theta + M_PI_2_F))
-			    + R*self.mo(2*M_PI_F + self.mo(theta + M_PI_2_F) - self.mo(self._dubinspath.chie + M_PI_2_F))
+			L4 = (clss - cle).size() + R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chis + M_PI_2_F) - mo(theta + M_PI_2_F)) + \
+			     R*self.mo(2*M_PI_F + self.mo(theta + M_PI_2_F) - self.mo(self._dubinspath.chie + M_PI_2_F))
 
 			# L = minimum distance
 			idx = 1
@@ -160,9 +194,59 @@ class path_manager_example(path_manager_base):
 				self._dubinspath.q1 = (cre - crs).normalized();
 				self._dubinspath.w1 = self._dubinspath.cs + (self.rotz(-M_PI_2_F)*self._dubinspath.q1)*R;
 				self._dubinspath.w2 = self._dubinspath.ce + (self.rotz(-M_PI_2_F)*self._dubinspath.q1)*R;
-			elif idx = 2:
-				###
-			elif idx = 3:
-				###
-			elif idx = 4:
-				###
+			elif idx == 2:
+				self._dubinspath.cs = crs
+				self._dubinspath.lams = 1
+				self._dubinspath.ce = cle
+				self._dubinspath.lame = -1
+				ell = (cle - crs).size()
+				theta = atan2(cle(1) - crs(1), cle(0) - crs(0))
+				theta2 = theta - M_PI_2_F + asin(2*R/ell)
+				self._dubinspath.q1 = self.rotz(theta2 + M_PI_2_F)*e1
+				self._dubinspath.w1 = self._dubinspath.cs + (self.rotz(theta2)*e1)*R
+				self._dubinspath.w2 = self._dubinspath.ce + (self.rotz(theta2 + M_PI_F)*e1)*R
+			elif idx == 3:
+				self._dubinspath.cs = clss
+				self._dubinspath.lams = -1
+				self._dubinspath.ce = cre
+				self._dubinspath.lame = 1
+				ell = (cre - clss).size()
+				theta = atan2(cre(1) - clss(1), cre(0) - clss(0))
+				theta2 = acos(2*R/ell)
+				self._dubinspath.q1 = self.rotz(theta + theta2 - M_PI_2_F)*e1
+				self._dubinspath.w1 = self._dubinspath.cs + (self.rotz(theta + theta2)*e1)*R
+				self._dubinspath.w2 = self._dubinspath.ce + (self.rotz(theta + theta2 - M_PI_F)*e1)*R
+			elif idx == 4:
+				self._dubinspath.cs = clss
+				self._dubinspath.lams = -1
+				self._dubinspath.ce = cle
+				self._dubinspath.lame = -1
+				self._dubinspath.q1 = (cle - clss).normalized()
+				self._dubinspath.w1 = self._dubinspath.cs + (self.rotz(M_PI_2_F)*self._dubinspath.q1)*R
+				self._dubinspath.w2 = self._dubinspath.ce + (self.rotz(M_PI_2_F)*self._dubinspath.q1)*R
+			self._dubinspath.w3 = self._dubinspath.pe
+			self._dubinspath.q3 = self.rotz(self._dubinspath.chie)*e1
+			self._dubinspath.R = R
+
+	def dot(first, second):
+		# first and second are np.arrays of size 3
+		return first[0]*second[0] + first[1]*second[1] + first[2]*second[2]
+
+
+##############################
+#### Main Function to Run ####
+##############################
+if __name__ == '__main__':
+	# Initialize Node
+	rospy.init_node('ros_plane_path_manager')
+
+	# set rate
+	hz = 10.0
+	rate = rospy.Rate(hz)
+
+	# init path_manager_base object
+	manager = path_manager_example()
+
+	# Loop
+	while not rospy.is_shutdown():
+		rate.sleep()
