@@ -35,6 +35,16 @@ class path_manager_base:
 		chi_valid = True
 		Va_d = 0.0
 
+		def __str__(self):
+			return "w: " + str(self.w) + "\nchi_d: " + str(self.chi_d) + "\nchi_valid: " + str(self. chi_valid) + "\nVa_d: " + str(self.Va_d)
+
+	class waypoint_temp:
+		w0 = 0.0
+		w1 = 0.0
+		w2 = 0.0
+		chi_d = 0.0
+		chi_valid = True
+		Va_d = 0.0
 
  	class input_s:
 	 	pn = 0.0 # position North
@@ -57,47 +67,48 @@ class path_manager_base:
 	# Class members
 	_num_waypoints = 0
 	_vehicle_state = FW_State()
-	_waypoints = [waypoint_s() for _ in range(SIZE_WAYPOINT_ARRAY)]
+	_waypoints = [waypoint_temp() for _ in range(SIZE_WAYPOINT_ARRAY)]
 
 
  	# Class Member Functions
 	def waypoint_init(self):
-		self._waypoints[self._num_waypoints].w[0]  	 = 0
-		self._waypoints[self._num_waypoints].w[1]      = 0
-		self._waypoints[self._num_waypoints].w[2]      = -100
-		self._waypoints[self._num_waypoints].chi_d     = -9999
+		self._waypoints[self._num_waypoints].w0  	 = 0
+		self._waypoints[self._num_waypoints].w1      = 0
+		self._waypoints[self._num_waypoints].w2      = -100
+		self._waypoints[self._num_waypoints].chi_d     = -9992
 		self._waypoints[self._num_waypoints].chi_valid = 0
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
-		self._waypoints[self._num_waypoints].w[0]      = 1000
-		self._waypoints[self._num_waypoints].w[1]      = 0
-		self._waypoints[self._num_waypoints].w[2]      = -100
-		self._waypoints[self._num_waypoints].chi_d     = -9999
+
+		self._waypoints[self._num_waypoints].w0      = 1000
+		self._waypoints[self._num_waypoints].w1      = 0
+		self._waypoints[self._num_waypoints].w2      = -100
+		self._waypoints[self._num_waypoints].chi_d     = -9993
 		self._waypoints[self._num_waypoints].chi_valid = 0
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
-		self._waypoints[self._num_waypoints].w[0]      = 1000
-		self._waypoints[self._num_waypoints].w[1]      = 1000
-		self._waypoints[self._num_waypoints].w[2]      = -100
-		self._waypoints[self._num_waypoints].chi_d     = -9999
+		self._waypoints[self._num_waypoints].w0      = 1000
+		self._waypoints[self._num_waypoints].w1      = 1000
+		self._waypoints[self._num_waypoints].w2      = -100
+		self._waypoints[self._num_waypoints].chi_d     = -9994
 		self._waypoints[self._num_waypoints].chi_valid = 0
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
-		self._waypoints[self._num_waypoints].w[0]      = 0
-		self._waypoints[self._num_waypoints].w[1]      = 1000
-		self._waypoints[self._num_waypoints].w[2]      = -100
-		self._waypoints[self._num_waypoints].chi_d     = -9999
+		self._waypoints[self._num_waypoints].w0      = 0
+		self._waypoints[self._num_waypoints].w1      = 1000
+		self._waypoints[self._num_waypoints].w2      = -100
+		self._waypoints[self._num_waypoints].chi_d     = -9995
 		self._waypoints[self._num_waypoints].chi_valid = 0
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
-		self._waypoints[self._num_waypoints].w[0]      = 0
-		self._waypoints[self._num_waypoints].w[1]      = 0
-		self._waypoints[self._num_waypoints].w[2]      = 0
-		self._waypoints[self._num_waypoints].chi_d     = -9999
+		self._waypoints[self._num_waypoints].w0      = -1000
+		self._waypoints[self._num_waypoints].w1      = -1000
+		self._waypoints[self._num_waypoints].w2      = -100
+		self._waypoints[self._num_waypoints].chi_d     = -9996
 		self._waypoints[self._num_waypoints].chi_valid = 0
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
@@ -118,9 +129,9 @@ class path_manager_base:
 
   	def new_waypoint_callback(self, msg):
   		print 'New Waypoint Callback'
-		self._waypoints[self._num_waypoints].w[0]      = msg.w[0]
-		self._waypoints[self._num_waypoints].w[1]      = msg.w[1]
-		self._waypoints[self._num_waypoints].w[2]      = msg.w[2]
+		self._waypoints[self._num_waypoints].w0      = msg.w[0]
+		self._waypoints[self._num_waypoints].w1      = msg.w[1]
+		self._waypoints[self._num_waypoints].w2      = msg.w[2]
 		self._waypoints[self._num_waypoints].chi_d     = msg.chi_d
 		self._waypoints[self._num_waypoints].chi_valid = msg.chi_valid
 		self._waypoints[self._num_waypoints].Va_d      = msg.Va_d
@@ -210,11 +221,6 @@ class path_manager_base:
 		else:
 			b = self._waypoints[self.index_a + 1]
 			c = self._waypoints[self.index_a + 2]
-		print self.index_a
-		print a.w
-		print self._waypoints[1].Va_d
-		print self._num_waypoints
-		print 'Done'
 
 	def manage_fillet(self, params, inpt, output):
 		print 'Def Manage Fillet'
@@ -357,6 +363,15 @@ class path_manager_base:
 		# first and second are np.arrays of size 3
 		return first[0]*second[0] + first[1]*second[1] + first[2]*second[2]
 
+	def waypointprint(self):
+		for _ in range(0,self._num_waypoints):
+			print _
+			print self._waypoints[_].w0
+			print self._waypoints[_].w1
+			print self._waypoints[_].w2
+			print self._waypoints[_].chi_d
+			print self._waypoints[_].chi_valid
+			print self._waypoints[_].Va_d
 
 ##############################
 #### Main Function to Run ####
