@@ -19,14 +19,14 @@ class path_manager_base:
 	def __init__(self):
 		print 'Base Init'
 		# R_min param
-		self.waypoint_init()
+		# self.waypoint_init()
 
 		# inititlialize subscribers
 		self._vehicle_state_sub = rospy.Subscriber('state', FW_State, self.vehicle_state_callback)
 		self._new_waypoint_sub = rospy.Subscriber('waypoint_path', FW_Waypoint, self.new_waypoint_callback)
 
 		# Init Publishers
-		self._current_path_pub = rospy.Subscriber('current_path', FW_Current_Path, queue_size=10)
+		self._current_path_pub = rospy.Publisher('current_path', FW_Current_Path, queue_size=10)
 
 	# Subclasses
 	class waypoint_s:
@@ -45,6 +45,9 @@ class path_manager_base:
 		chi_d = 0.0
 		chi_valid = True
 		Va_d = 0.0
+
+		def __str__(self):
+			return "w: " + str([self.w0,self.w1,self.w2]) + "\nchi_d: " + str(self.chi_d) + "\nchi_valid: " + str(self. chi_valid) + "\nVa_d: " + str(self.Va_d)
 
  	class input_s:
 	 	pn = 0.0 # position North
@@ -80,7 +83,6 @@ class path_manager_base:
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
-
 		self._waypoints[self._num_waypoints].w0      = 1000
 		self._waypoints[self._num_waypoints].w1      = 0
 		self._waypoints[self._num_waypoints].w2      = -100
@@ -113,6 +115,8 @@ class path_manager_base:
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
+		# self.waypointprint()
+
   	def vehicle_state_callback(self, msg):
 		print 'Vehicle State Callback'
 		self._vehicle_state = msg
@@ -124,8 +128,8 @@ class path_manager_base:
 
 		outputs = self.output_s()
 		params = self.params_s()
-		self.manage(params, inpt, outputs)
-		# self.current_path_publisher(outputs)
+		outputs = self.manage(params, inpt, outputs)
+		self.current_path_publisher(outputs)
 
   	def new_waypoint_callback(self, msg):
   		print 'New Waypoint Callback'
@@ -137,7 +141,7 @@ class path_manager_base:
 		self._waypoints[self._num_waypoints].Va_d      = msg.Va_d
 		self._num_waypoints+=1
 
-	def current_path_publsih(self, output):
+	def current_path_publisher(self, output):
 		print 'Current Path Publisher'
 		current_path = FW_Current_Path()
 
@@ -150,9 +154,9 @@ class path_manager_base:
 			current_path.c[i] = output.c[i]
 
 		current_path.rho = output.rho
-		current_path.lambdaa = output.lambdaa
+		# current_path.lambdaa = output.lambdaa
 
-		_current_path_pub.publish(current_path)
+		self._current_path_pub.publish(current_path)
 
 	# Classes in class
 	class dubinspath_s:
@@ -195,22 +199,23 @@ class path_manager_base:
 			output.lambdaa = 0
 		else:
 			################ FIX THISSS###############
-			if False: #(self._waypoints[0].chi_valid)#(_ptr_a->chi_valid):
+			if (self._waypoints[self.index_a].chi_valid): #(self._waypoints[0].chi_valid)#(_ptr_a->chi_valid):
 				print 'Manage -- Dubins'
-				self.manage_dubins(params, inpt, output)
+				output = self.manage_dubins(params, inpt, output)
 			else:
 				print 'Manage -- Line'
-				self.manage_line(params,inpt,output)
+				output = self.manage_line(params, inpt, output)
 				# print 'Manage -- Fillet'
 				# self.manage_fillet(params,inpt,output)
+		return output
 
 	def manage_line(self, params, inpt, output):
 		print 'Def Manage Line'
 		p = np.array([inpt.pn, inpt.pe, -inpt.h])
 
 		a = self._waypoints[self.index_a]
-		b = self.waypoint_s()
-		c = self.waypoint_s()
+		b = self.waypoint_temp()
+		c = self.waypoint_temp()
 
 		if (self.index_a == (self._num_waypoints - 1)):
 			b = self._waypoints[0]
@@ -222,11 +227,41 @@ class path_manager_base:
 			b = self._waypoints[self.index_a + 1]
 			c = self._waypoints[self.index_a + 2]
 
+		# print 'waypoint b'
+		# print b
+		# print 'waypoint c'
+		# print c
+
+		w_im1 = np.array([a.w0,a.w1,a.w2])
+		w_i = np.array([b.w0,b.w1,b.w2])
+		w_ip1 = np.array([c.w0,c.w1,c.w2])
+
+		output.flag = True
+		output.Va_d = a.Va_d
+		output.r = [w_im1[0],w_im1[1],w_im1[2]]
+
+		q_im1 = self.normalize(w_i - w_im1)
+		q_i = self.normalize(w_ip1 - w_i)
+		output.q = [q_im1[0],q_im1[1],q_im1[2]]
+		output.c = [1, 1, 1]
+		output.rho = 1
+		# output.lambdaa = 1
+
+		n_i = self.normalize(q_im1 + q_i)
+		if (self.dot((p - w_i),n_i) > 0.0):
+			if (self.index_a == (_num_waypoints - 1)):
+				self.index_a = 0
+			else:
+				self.index_a += 1
+
+		return output
+
 	def manage_fillet(self, params, inpt, output):
 		print 'Def Manage Fillet'
 
 	def manage_dubins(self, params, inpt, output):
 		print 'Def Manage Dubins'
+		return output
 
 	def rotz(self, theta):
 		R = np.matrix([cos(theta), -sin(theta), 0.0],
@@ -243,6 +278,12 @@ class path_manager_base:
 			n = floor(inpt/2/M_PI_F)
 			val = inpt - n*2*M_PI_F
 		return val
+
+	def normalize(self, v):
+		norm=np.linalg.norm(v, ord=1)
+		if norm==0:
+			norm=np.finfo(v.dtype).eps
+		return v/norm
 
 	def dubinsParameters(self, start_node, end_node, R):
 		ell = sqrt((start_node.w[0] - end_node.w[0])*(start_node.w[1] - end_node.w[1]))
@@ -359,13 +400,13 @@ class path_manager_base:
 			self._dubinspath.q3 = self.rotz(self._dubinspath.chie)*e1
 			self._dubinspath.R = R
 
-	def dot(first, second):
+	def dot(self, first, second):
 		# first and second are np.arrays of size 3
 		return first[0]*second[0] + first[1]*second[1] + first[2]*second[2]
 
 	def waypointprint(self):
 		for _ in range(0,self._num_waypoints):
-			print _
+			print 'waypoint#' + str(_)
 			print self._waypoints[_].w0
 			print self._waypoints[_].w1
 			print self._waypoints[_].w2
