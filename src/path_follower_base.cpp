@@ -60,7 +60,7 @@ void path_follower_base::current_path_callback(const fcu_common::FW_Current_Path
     _input.c_orbit[i] = _current_path.c[i];
   }
   _input.rho_orbit = _current_path.rho;
-  _input.lam_orbit = _current_path.lambda;
+  _input.lam_orbit = _current_path.lambda_;
 }
 
 void path_follower_base::reconfigure_callback(ros_plane::FollowerConfig &config, uint32_t level)

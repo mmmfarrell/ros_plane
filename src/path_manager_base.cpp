@@ -107,7 +107,7 @@ void path_manager_base::current_path_publish(output_s &output)
         current_path.c[i] = output.c[i];
     }
     current_path.rho = output.rho;
-    current_path.lambda = output.lambda;
+    current_path.lambda_ = output.lambda;
 
     _current_path_pub.publish(current_path);
 }
