@@ -1,162 +1,20 @@
 #!/usr/bin/env python
-# Python implementation of "path_manager"
-# path_manager_base.h & path_manager_base.py
 
-import rospy
-from fcu_common.msg import FW_State, FW_Current_Path, FW_Waypoint
-from sensor_msgs.msg import Imu, FluidPressure
-from std_msgs.msg import Float32, Float32MultiArray
-from math import *
+from path_manager_base import path_manager_base
 import numpy as np
-#import Eigen
-#from ros_plane import ControllerConfig
+import rospy
+from math import *
 
-SIZE_WAYPOINT_ARRAY = 20
+M_PI_F = 3.14159265358979323846
+M_PI_2_F = 1.57079632679489661923
 
-class path_manager_base:
+class path_manager_example(path_manager_base):
 
-	# Init function
+	# Init
 	def __init__(self):
-		print 'Base Init'
-		# R_min param
-		# self.waypoint_init()
+		print 'Example Init'
+		path_manager_base.__init__(self)
 
-		# inititlialize subscribers
-		self._vehicle_state_sub = rospy.Subscriber('state', FW_State, self.vehicle_state_callback)
-		self._new_waypoint_sub = rospy.Subscriber('waypoint_path', FW_Waypoint, self.new_waypoint_callback)
-
-		# Init Publishers
-		self._current_path_pub = rospy.Publisher('current_path', FW_Current_Path, queue_size=10)
-
-	# Subclasses
-	class waypoint_s:
-		w = [0.0, 0.0, 0.0]
-		chi_d = 0.0
-		chi_valid = True
-		Va_d = 0.0
-
-		def __str__(self):
-			return "w: " + str(self.w) + "\nchi_d: " + str(self.chi_d) + "\nchi_valid: " + str(self. chi_valid) + "\nVa_d: " + str(self.Va_d)
-
-	class waypoint_temp:
-		w0 = 0.0
-		w1 = 0.0
-		w2 = 0.0
-		chi_d = 0.0
-		chi_valid = True
-		Va_d = 0.0
-
-		def __str__(self):
-			return "w: " + str([self.w0,self.w1,self.w2]) + "\nchi_d: " + str(self.chi_d) + "\nchi_valid: " + str(self. chi_valid) + "\nVa_d: " + str(self.Va_d)
-
- 	class input_s:
-	 	pn = 0.0 # position North
-	 	pe = 0.0 # position East
-	 	h = 0.0 # Altitude
-	 	chi = 0.0 # course angle
-
- 	class output_s:
-	 	flag = True # Inicates strait line or orbital path (true is line, false is orbit)
-	 	Va_d = 0.0 # Desired airspeed (m/s)
-	 	r = [0.0, 0.0, 0.0] # Vector to origin of straight line path (m)
-	 	q = [0.0, 0.0, 0.0] # Unit vector, desired direction of travel for line path
-	 	c = [0.0, 0.0, 0.0] # Center of orbital path (m)
-	 	rho = 0.0 # Radius of orbital path (m)
-	 	lambdaa = 1 # Direction of orbital path (cw is 1, ccw is -1)
-
- 	class params_s:
- 		R_min = 0.0
-
-	# Class members
-	_num_waypoints = 0
-	_vehicle_state = FW_State()
-	_waypoints = [waypoint_temp() for _ in range(SIZE_WAYPOINT_ARRAY)]
-
-
- 	# Class Member Functions
-	def waypoint_init(self):
-		self._waypoints[self._num_waypoints].w0  	 = 0
-		self._waypoints[self._num_waypoints].w1      = 0
-		self._waypoints[self._num_waypoints].w2      = -100
-		self._waypoints[self._num_waypoints].chi_d     = -9992
-		self._waypoints[self._num_waypoints].chi_valid = 0
-		self._waypoints[self._num_waypoints].Va_d      = 35
-		self._num_waypoints+=1
-
-		self._waypoints[self._num_waypoints].w0      = 1000
-		self._waypoints[self._num_waypoints].w1      = 0
-		self._waypoints[self._num_waypoints].w2      = -100
-		self._waypoints[self._num_waypoints].chi_d     = -9993
-		self._waypoints[self._num_waypoints].chi_valid = 0
-		self._waypoints[self._num_waypoints].Va_d      = 35
-		self._num_waypoints+=1
-
-		self._waypoints[self._num_waypoints].w0      = 1000
-		self._waypoints[self._num_waypoints].w1      = 1000
-		self._waypoints[self._num_waypoints].w2      = -100
-		self._waypoints[self._num_waypoints].chi_d     = -9994
-		self._waypoints[self._num_waypoints].chi_valid = 0
-		self._waypoints[self._num_waypoints].Va_d      = 35
-		self._num_waypoints+=1
-
-		self._waypoints[self._num_waypoints].w0      = 0
-		self._waypoints[self._num_waypoints].w1      = 1000
-		self._waypoints[self._num_waypoints].w2      = -100
-		self._waypoints[self._num_waypoints].chi_d     = -9995
-		self._waypoints[self._num_waypoints].chi_valid = 0
-		self._waypoints[self._num_waypoints].Va_d      = 35
-		self._num_waypoints+=1
-
-		self._waypoints[self._num_waypoints].w0      = -1000
-		self._waypoints[self._num_waypoints].w1      = -1000
-		self._waypoints[self._num_waypoints].w2      = -100
-		self._waypoints[self._num_waypoints].chi_d     = -9996
-		self._waypoints[self._num_waypoints].chi_valid = 0
-		self._waypoints[self._num_waypoints].Va_d      = 35
-		self._num_waypoints+=1
-
-		# self.waypointprint()
-
-  	def vehicle_state_callback(self, msg):
-		print 'Vehicle State Callback'
-		self._vehicle_state = msg
-		inpt = self.input_s()
-		inpt.pn = self._vehicle_state.position[0]
-		inpt.pe = self._vehicle_state.position[1]
-		inpt.h = -self._vehicle_state.position[2]
-		inpt.chi = self._vehicle_state.chi
-
-		outputs = self.output_s()
-		params = self.params_s()
-		outputs = self.manage(params, inpt, outputs)
-		self.current_path_publisher(outputs)
-
-  	def new_waypoint_callback(self, msg):
-  		print 'New Waypoint Callback'
-		self._waypoints[self._num_waypoints].w0      = msg.w[0]
-		self._waypoints[self._num_waypoints].w1      = msg.w[1]
-		self._waypoints[self._num_waypoints].w2      = msg.w[2]
-		self._waypoints[self._num_waypoints].chi_d     = msg.chi_d
-		self._waypoints[self._num_waypoints].chi_valid = msg.chi_valid
-		self._waypoints[self._num_waypoints].Va_d      = msg.Va_d
-		self._num_waypoints+=1
-
-	def current_path_publisher(self, output):
-		print 'Current Path Publisher'
-		current_path = FW_Current_Path()
-
-		current_path.flag = output.flag
-		current_path.Va_d = output.Va_d
-
-		for i in range(0,3):
-			current_path.r[i] = output.r[i]
-			current_path.q[i] = output.q[i]
-			current_path.c[i] = output.c[i]
-
-		current_path.rho = output.rho
-		# current_path.lambdaa = output.lambdaa
-
-		self._current_path_pub.publish(current_path)
 
 	# Classes in class
 	class dubinspath_s:
@@ -178,14 +36,14 @@ class path_manager_base:
 
 	# Member objects
 	dubinspath = dubinspath_s()
-	index_a = 0	
+	index_a = 0
 
 	# functions
 	def manage(self, params, inpt, output):
-		print 'Manage'
+
 		if (self._num_waypoints < 2):
-			output.flag = True
-			output.Va_d = 9
+			output.flag = true
+			output.Va_d = 9			# default airspeed to fly to One Waypoint
 			output.r[0] = inpt.pn
 			output.r[1] = inpt.pe
 			output.r[2] = -inpt.h
@@ -198,25 +56,25 @@ class path_manager_base:
 			output.rho = 0
 			output.lambdaa = 0
 		else:
-			################ FIX THISSS###############
-			if (self._waypoints[self.index_a].chi_valid): #(self._waypoints[0].chi_valid)#(_ptr_a->chi_valid):
+			################ FIX THISSS ###############
+			if False: #(self._waypoints[0].chi_valid)#(_ptr_a->chi_valid):
 				print 'Manage -- Dubins'
-				output = self.manage_dubins(params, inpt, output)
+				self.manage_dubins(params, inpt, output)
 			else:
 				print 'Manage -- Line'
-				output = self.manage_line(params, inpt, output)
+				self.manage_line(params,inpt,output)
 				# print 'Manage -- Fillet'
 				# self.manage_fillet(params,inpt,output)
-		return output
 
 	def manage_line(self, params, inpt, output):
-		print 'Def Manage Line'
+		print 'Def Manage Line 2'
+		print 'here'
 		p = np.array([inpt.pn, inpt.pe, -inpt.h])
-
+		print 'here1'
 		a = self._waypoints[self.index_a]
-		b = self.waypoint_temp()
-		c = self.waypoint_temp()
-
+		b = self.waypoint_s()
+		c = self.waypoint_s()
+		print 'here'
 		if (self.index_a == (self._num_waypoints - 1)):
 			b = self._waypoints[0]
 			c = self._waypoints[1]
@@ -226,42 +84,18 @@ class path_manager_base:
 		else:
 			b = self._waypoints[self.index_a + 1]
 			c = self._waypoints[self.index_a + 2]
+		print self.index_a
+		print a
+		print b
+		print 'Done'
 
-		# print 'waypoint b'
-		# print b
-		# print 'waypoint c'
-		# print c
 
-		w_im1 = np.array([a.w0,a.w1,a.w2])
-		w_i = np.array([b.w0,b.w1,b.w2])
-		w_ip1 = np.array([c.w0,c.w1,c.w2])
-
-		output.flag = True
-		output.Va_d = a.Va_d
-		output.r = [w_im1[0],w_im1[1],w_im1[2]]
-
-		q_im1 = self.normalize(w_i - w_im1)
-		q_i = self.normalize(w_ip1 - w_i)
-		output.q = [q_im1[0],q_im1[1],q_im1[2]]
-		output.c = [1, 1, 1]
-		output.rho = 1
-		# output.lambdaa = 1
-
-		n_i = self.normalize(q_im1 + q_i)
-		if (self.dot((p - w_i),n_i) > 0.0):
-			if (self.index_a == (_num_waypoints - 1)):
-				self.index_a = 0
-			else:
-				self.index_a += 1
-
-		return output
 
 	def manage_fillet(self, params, inpt, output):
 		print 'Def Manage Fillet'
 
 	def manage_dubins(self, params, inpt, output):
 		print 'Def Manage Dubins'
-		return output
 
 	def rotz(self, theta):
 		R = np.matrix([cos(theta), -sin(theta), 0.0],
@@ -278,12 +112,6 @@ class path_manager_base:
 			n = floor(inpt/2/M_PI_F)
 			val = inpt - n*2*M_PI_F
 		return val
-
-	def normalize(self, v):
-		norm=np.linalg.norm(v, ord=1)
-		if norm==0:
-			norm=np.finfo(v.dtype).eps
-		return v/norm
 
 	def dubinsParameters(self, start_node, end_node, R):
 		ell = sqrt((start_node.w[0] - end_node.w[0])*(start_node.w[1] - end_node.w[1]))
@@ -400,19 +228,10 @@ class path_manager_base:
 			self._dubinspath.q3 = self.rotz(self._dubinspath.chie)*e1
 			self._dubinspath.R = R
 
-	def dot(self, first, second):
+	def dot(first, second):
 		# first and second are np.arrays of size 3
 		return first[0]*second[0] + first[1]*second[1] + first[2]*second[2]
 
-	def waypointprint(self):
-		for _ in range(0,self._num_waypoints):
-			print 'waypoint#' + str(_)
-			print self._waypoints[_].w0
-			print self._waypoints[_].w1
-			print self._waypoints[_].w2
-			print self._waypoints[_].chi_d
-			print self._waypoints[_].chi_valid
-			print self._waypoints[_].Va_d
 
 ##############################
 #### Main Function to Run ####
@@ -426,7 +245,7 @@ if __name__ == '__main__':
 	rate = rospy.Rate(hz)
 
 	# init path_manager_base object
-	manager = path_manager_base()
+	manager = path_manager_example()
 
 	# Loop
 	while not rospy.is_shutdown():
