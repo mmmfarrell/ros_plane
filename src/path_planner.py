@@ -38,7 +38,7 @@ def publishwaypoints():
 		new_waypoint.w[2] = wps[i*5 + 2]
 		new_waypoint.chi_d = wps[i*5 + 3]
 		
-		new_waypoint.chi_valid = True # False
+		new_waypoint.chi_valid = False # True
 		new_waypoint.Va_d = wps[i*5 + 4]
 		
 		# Publish the Waypoint
