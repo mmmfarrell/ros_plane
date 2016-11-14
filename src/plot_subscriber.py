@@ -314,7 +314,7 @@ def animate_plot1(i):
 		pn_error = states.pn - waypoint_pn_data[-1]
 		pe_error = states.pe - waypoint_pe_data[-1]
 		pd_error = states.pd - waypoint_pd_data[-1]
-		top_down.text(states.waypoint_pe+40,states.waypoint_pn-100,"error:\npn:%(1)d\npe:%(2)d\npd:%(3)d" %{"1":pn_error,"2":pe_error,"3":pd_error},fontsize=8)
+	#	top_down.text(states.waypoint_pe+40,states.waypoint_pn-100,"error:\npn:%(1)d\npe:%(2)d\npd:%(3)d" %{"1":pn_error,"2":pe_error,"3":pd_error},fontsize=8)
 
 	# update the time axis when necessary... they are all linked to the same pointer so you only need to update theta1
 	need_to_plot = False
