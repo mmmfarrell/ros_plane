@@ -306,22 +306,24 @@ class path_manager_base:
 
 		q_im1 = self.normalize(w_i - w_im1)
 		q_i = self.normalize(w_ip1 - w_i)
-		beta = acos(self.dot(-q_im1, q_i))
+		beta = acos(self.dot((-q_im1), q_i))
 
 		z = np.array([0.0, 0.0, 0.0])
 
 		if self.fillet_state == 'Straight':
 			output.flag = True
 			output.q = [q_im1[0], q_im1[1], q_im1[2]]
+
 			output.c = [1, 1, 1]
 			output.rho = 1
 			output.lambda_ = 1
-			z = w_i - q_im1*(R_min/tan(beta/2))
+			z = w_i - q_im1*(R_min/tan(beta/2.0))
 			if(self.dot((p-z),q_im1) > 0):
 			    self.fillet_state = 'Orbit'
-		elif self.fillet_state == 'Obrbit':
-			output.flag = True
-			output.q = [q_i1[0], q_i1[1], q_i1[2]]
+
+		elif self.fillet_state == 'Orbit':
+			output.flag = False
+			output.q = [q_i[0], q_i[1], q_i[2]]
 			c = w_i - self.normalize(q_im1-q_i)*(R_min/sin(beta/2.0))
 			output.c = [c[0], c[1], c[2]]
 			output.rho = R_min
@@ -497,7 +499,7 @@ class path_manager_base:
 		norm = sqrt(v[0]**2 + v[1]**2 + v[2]**2)
 		if norm==0:
 			norm=np.finfo(v.dtype).eps
-		temp = [0, 0, 0]
+		temp = np.array([0.0, 0.0, 0.0])
 		temp[0] = v[0]/norm
 		temp[1] = v[1]/norm
 		temp[2] = v[2]/norm
@@ -621,7 +623,8 @@ class path_manager_base:
 
 	def dot(self, first, second):
 		# first and second are np.arrays of size 3
-		return first[0]*second[0] + first[1]*second[1] + first[2]*second[2]
+		temp = (first[0]*second[0] + first[1]*second[1] + first[2]*second[2])
+		return temp
 
 	def waypointprint(self):
 		for _ in range(0,self._num_waypoints):
