@@ -5,7 +5,7 @@ import rospy
 from fcu_common.msg import FW_Waypoint
 import math
 
-num_waypoints = 4
+num_waypoints = 5
 
 def publishwaypoints():
 
@@ -20,12 +20,17 @@ def publishwaypoints():
 	rospy.sleep(d)
 
 	# Set waypoints
-	Va = 8.5 # 11.0
+	Va = 30.0#8.5 # 11.0
 	wps =  [
-                -10, -10, -30, -45, Va,
-                -10, -125, -30, -135*math.pi/180, Va,
-                -125, -10, -30, 45*math.pi/180, Va,
-                -125, -125, -30, 135*math.pi/180, Va]
+				0, 0, 0, 0, Va,
+				500, 0, -100, 0, Va,
+				0, 500, -100, 0, Va,
+				-500, 0, -100, 0, Va,
+				0, -500, -100, 0, Va]
+                # -10, -10, -30, -45, Va,
+                # -10, -125, -30, -135*math.pi/180, Va,
+                # -125, -10, -30, 45*math.pi/180, Va,
+                # -125, -125, -30, 135*math.pi/180, Va]
 	
     # Loop through each waypoint
 	for i in range(0,num_waypoints):

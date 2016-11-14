@@ -255,6 +255,7 @@ class path_manager_base:
 		output.r = [w_im1[0],w_im1[1],w_im1[2]]
 
 		q_im1 = self.normalize(w_i - w_im1)
+
 		q_i = self.normalize(w_ip1 - w_i)
 		output.q = [q_im1[0],q_im1[1],q_im1[2]]
 		output.c = [1, 1, 1]
@@ -263,7 +264,7 @@ class path_manager_base:
 
 		n_i = self.normalize(q_im1 + q_i)
 		if (self.dot((p - w_i),n_i) > 0.0):
-			if (self.index_a == (_num_waypoints - 1)):
+			if (self.index_a == (self._num_waypoints - 1)):
 				self.index_a = 0
 			else:
 				self.index_a += 1
@@ -491,10 +492,16 @@ class path_manager_base:
 		return val
 
 	def normalize(self, v):
-		norm=np.linalg.norm(v, ord=1)
+		# Theres probably a better way to do this, but his is what works
+		# norm=np.linalg.norm(v, ord=1) # tried this, but it didn't work, result in vector that sums to 1 not magnitude 1
+		norm = sqrt(v[0]**2 + v[1]**2 + v[2]**2)
 		if norm==0:
 			norm=np.finfo(v.dtype).eps
-		return v/norm
+		temp = [0, 0, 0]
+		temp[0] = v[0]/norm
+		temp[1] = v[1]/norm
+		temp[2] = v[2]/norm
+		return temp#v/norm
 
 	def dubinsParameters(self, start_node, end_node, R):
 		ell = sqrt((start_node.w0 - end_node.w0)*(start_node.w0 - end_node.w0) + (start_node.w1 - end_node.w1)*(start_node.w1 - end_node.w1))

@@ -67,6 +67,9 @@
   <node name="pathplanner" pkg="ros_plane" type="path_planner.py">
   </node>
 
+  <node name="plotter" pkg="ros_plane" type="plot_subscriber.py">
+  </node>
+
   <!-- <node name="current_path_publisher" pkg="rostopic" type="rostopic"
     args="pub /current_path fcu_common/FW_Current_Path 'false' '30.0'  '[0.0, 0.0, -100.0]'  '[1.0, 0.0, 0.0]'  '[0.0, 0.0, -100.0]'  '100.0' '1'"/> -->
 
