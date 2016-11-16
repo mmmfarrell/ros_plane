@@ -25,7 +25,7 @@ class path_manager_base:
 		print 'Base Init'
 
 		# Init Params
-		self.params.R_min = rospy.get_param('R_min',100.0)
+		self.params.R_min = rospy.get_param('R_min',200.0)
 
 		# run waypoint init to initialize with waypoints found in waypoint_init (alternative to path_planner.py)
 		# self.waypoint_init()
@@ -173,21 +173,21 @@ class path_manager_base:
 
 	# Classes in class
 	class dubinspath_s:
-		ps = np.array([0.0, 0.0, 0.0])
-		chis = 0.0
-		pe = np.array([0.0, 0.0, 0.0])
-		chie = 0.0
-		R = 0.0
-		L = 0.0
-		cs = np.array([0.0, 0.0, 0.0])
-		lams = 0
-		ce = np.array([0.0, 0.0, 0.0])
-		lame = 0
-		w1 = np.array([0.0, 0.0, 0.0])
-		q1 = np.array([0.0, 0.0, 0.0])
-		w2 = np.array([0.0, 0.0, 0.0])
-		w3 = np.array([0.0, 0.0, 0.0])
-		q3 = np.array([0.0, 0.0, 0.0])
+		ps = np.array([0.0, 0.0, 0.0]) 	# start position
+		chis = 0.0						# start course angle
+		pe = np.array([0.0, 0.0, 0.0])	# End Position
+		chie = 0.0						# end course angle
+		R = 0.0							# turn radius
+		L = 0.0							# length of path
+		cs = np.array([0.0, 0.0, 0.0])	# center of the start circle
+		lams = 0						# direction of the start circle
+		ce = np.array([0.0, 0.0, 0.0])	# center of the end circle
+		lame = 0						# direction of the end circle
+		w1 = np.array([0.0, 0.0, 0.0])	# vector defining half plane H1
+		q1 = np.array([0.0, 0.0, 0.0])	# unit vector along straight line path
+		w2 = np.array([0.0, 0.0, 0.0]) 	# vector defining half plane H2
+		w3 = np.array([0.0, 0.0, 0.0])	# vector defining half plane H3
+		q3 = np.array([0.0, 0.0, 0.0])	# unit vector defining direction of half plane H3
 
 	# Member objects
 	_dubinspath = dubinspath_s()
@@ -272,6 +272,7 @@ class path_manager_base:
 		return output
 
 	def manage_fillet(self, params, inpt, output):
+		# I think fillet path works, just have to be careful with the waypoints entered
 		print 'Def Manage Fillet'
 
 		p = np.array([inpt.pn, inpt.pe, -inpt.h])
@@ -310,6 +311,8 @@ class path_manager_base:
 
 		z = np.array([0.0, 0.0, 0.0])
 
+		print self.fillet_state
+
 		if self.fillet_state == 'Straight':
 			output.flag = True
 			output.q = [q_im1[0], q_im1[1], q_im1[2]]
@@ -317,9 +320,21 @@ class path_manager_base:
 			output.c = [1, 1, 1]
 			output.rho = 1
 			output.lambda_ = 1
+
 			z = w_i - q_im1*(R_min/tan(beta/2.0))
+
+			# # Test Prints
+			# print 'beta'
+			# # print beta
+			# print 'z'
+			# print z
+			# print '(p-z)'
+			# print (p-z)
+			# print 'self.dot((p-z),q_im1)'
+			# print self.dot((p-z),q_im1)
+
 			if(self.dot((p-z),q_im1) > 0):
-			    self.fillet_state = 'Orbit'
+				self.fillet_state = 'Orbit'
 
 		elif self.fillet_state == 'Orbit':
 			output.flag = False
@@ -342,6 +357,8 @@ class path_manager_base:
 		p = np.array([inpt.pn, inpt.pe, -inpt.h])
 
 		R_min = params.R_min
+
+		print self.dubin_state
 
 		if self.dubin_state == 'First':
 			self.dubinsParameters(self._waypoints[0], self._waypoints[1], R_min)
@@ -643,13 +660,15 @@ if __name__ == '__main__':
 	# Initialize Node
 	rospy.init_node('ros_plane_path_manager')
 
-	# set rate
-	hz = 10.0
-	rate = rospy.Rate(hz)
+	# # set rate
+	# hz = 10.0
+	# rate = rospy.Rate(hz)
 
 	# init path_manager_base object
 	manager = path_manager_base()
 
-	# Loop
-	while not rospy.is_shutdown():
-		rate.sleep()
+	rospy.spin()
+
+	# # Loop
+	# while not rospy.is_shutdown():
+	# 	rate.sleep()

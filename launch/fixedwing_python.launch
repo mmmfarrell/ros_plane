@@ -60,7 +60,7 @@
 
   <!--<node name="reconfig" pkg="rqt_reconfigure" type="rqt_reconfigure"/> -->
 
-  <node name="pathmanager" pkg="ros_plane" type="path_manager.py">
+  <node name="pathmanager" pkg="ros_plane" type="path_manager.py" output="screen">
      <remap from="state" to="/junker/truth"/>
   </node>
 

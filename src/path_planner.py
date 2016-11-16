@@ -22,10 +22,9 @@ def publishwaypoints():
 	# Set waypoints
 	Va = 30.0#8.5 # 11.0
 	wps =  [
-				0, 0, 0, 0, Va,
 				500, 0, -100, 0, Va,
-				0, 500, -100, 0, Va,
-				-500, 0, -100, 0, Va,
+				1000, 250, -100, 0, Va,
+				1500, 500, -100, 0, Va,
 				0, -500, -100, 0, Va]
                 # -10, -10, -30, -45, Va,
                 # -10, -125, -30, -135*math.pi/180, Va,
@@ -43,7 +42,7 @@ def publishwaypoints():
 		new_waypoint.w[2] = wps[i*5 + 2]
 		new_waypoint.chi_d = wps[i*5 + 3]
 		
-		new_waypoint.chi_valid = False # True
+		new_waypoint.chi_valid = True # True
 		new_waypoint.Va_d = wps[i*5 + 4]
 		
 		# Publish the Waypoint
