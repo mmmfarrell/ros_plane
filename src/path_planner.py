@@ -5,7 +5,7 @@ import rospy
 from fcu_common.msg import FW_Waypoint
 import math
 
-num_waypoints = 5
+num_waypoints = 4
 
 def publishwaypoints():
 
@@ -42,7 +42,7 @@ def publishwaypoints():
 		new_waypoint.w[2] = wps[i*5 + 2]
 		new_waypoint.chi_d = wps[i*5 + 3]
 		
-		new_waypoint.chi_valid = True # True
+		new_waypoint.chi_valid = False # True
 		new_waypoint.Va_d = wps[i*5 + 4]
 		
 		# Publish the Waypoint
