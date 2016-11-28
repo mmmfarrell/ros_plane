@@ -15,9 +15,9 @@ class path_follower_base:
 	def __init__(self):
 		
 		# Init stuff here
-		self.params.chi_infty = rospy.get_param('CHI_INFTY', 1.0472)
-		self.params.k_path = rospy.get_param('K_PATH', 0.025)
-		self.params.k_orbit = rospy.get_param('K_ORBIT',8.0)
+		self._params.chi_infty = rospy.get_param('CHI_INFTY', 1.0472)
+		self._params.k_path = rospy.get_param('K_PATH', 0.025)
+		self._params.k_orbit = rospy.get_param('K_ORBIT', 8.0)
 
 		# Dynamic Reconfigure
 		self._server = Server(FollowerConfig, self.reconfigure_callback)
@@ -29,13 +29,17 @@ class path_follower_base:
 		# Init Publishers
 		self.controller_commands_pub = rospy.Publisher('controller_commands', FW_Controller_Commands, queue_size=1)
 
+		# Init Timer
+		self.update_rate = 100.0
+		self.update_timer_ = rospy.Timer(rospy.Duration(1.0/self.update_rate), self.update)
+
 	# Subclasses
 	class input_s:
 		flag = True
 		Va_d = 0.0
 		r_path = np.array([0.0, 0.0, 0.0]) 
 		q_path = np.array([0.0, 0.0, 0.0]) 
-		c_path = np.array([0.0, 0.0, 0.0])
+		c_orbit = np.array([0.0, 0.0, 0.0])
 		rho_orbit = 0.0
 		lam_orbit = 1
 		pn = 0.0 			# position north
@@ -55,14 +59,24 @@ class path_follower_base:
 		k_orbit = 0.0 
 
 	# Class Members
-	update_rate = 100.0
-	_duration = rospy.Duration
-	update_timer_ = rospy.Timer(rospy.Duration(1.0/update_rate), self.update)
 	_params = params_s()
 	_input = input_s()
 
 	# Callback functions
+	def update(self, event):
+		# print "Update (Timer Callback)"
+		output = self.output_s()
+
+		output = self.follow(self._params, self._input, output)
+
+		msg = FW_Controller_Commands()
+		msg.chi_c = output.chi_c
+		msg.Va_c = output.Va_c
+		msg.h_c = output.h_c
+		self.controller_commands_pub.publish(msg)
+
 	def vehicle_state_callback(self, msg):
+		print "Vehicle State Callback"
 		_vehicle_state = msg
 		self._input.pn = _vehicle_state.position[0]
 		self._input.pe = _vehicle_state.position[1]
@@ -70,6 +84,7 @@ class path_follower_base:
 		self._input.chi = _vehicle_state.chi
 
 	def current_path_callback(self, msg):
+		print "Current Path Callback"
 		_current_path = msg
 		self._input.flag = _current_path.flag
 		self._input.Va_d = _current_path.Va_d
@@ -81,6 +96,7 @@ class path_follower_base:
 		self._input.lam_orbit = _current_path.lambda_
 
 	def reconfigure_callback(self, config, level):
+		print "Reconfigure Callback"
 		self._params.chi_infty = config.CHI_INFTY
 		self._params.k_path = config.K_PATH
 		self._params.k_orbit = config.K_ORBIT
@@ -89,21 +105,10 @@ class path_follower_base:
 		# 	{str_param}, {bool_param}, {size}""".format(**config))
 		return config
 
-	def update(self, event):
-		output = self.output_s()
-
-		output = follow(self._params, self._input, output)
-
-		msg = FW_Controller_Commands()
-		msg.chi_c = output.chi_c
-		msg.Va_c = output.Va_c
-		msg.h_c = output.h_c
-		self.controller_commands_pub.publish(msg)
-
 	def follow(self, params, inpt, output):
 		if inpt.flag:
-			rospy.loginfo("Params are: \n params.k_path = %d\n chi_infty = %d" params.k_path, params.chi_infty) # FIX THIS
-			rospy.loginfo("Params are: \n params.k_orbit = %d\n rho_orbit = %d" params.k_orbit, params.rho_orbit) # FIX THIS
+			rospy.loginfo("Params are: \n params.k_path = %4.3f\n chi_infty = %5.4f" % (params.k_path, params.chi_infty)) # FIX THIS
+			rospy.loginfo("Params are: \n params.k_orbit = %3.2f\n rho_orbit = %4.1f\n lam_orbit = %i" % (params.k_orbit, inpt.rho_orbit, inpt.lam_orbit)) # FIX THIS
 
 			# Compute wrapped version of the path angle
 			chi_q = atan2(inpt.q_path[1],inpt.q_path[0])
@@ -113,17 +118,18 @@ class path_follower_base:
 			    chi_q -= 2*np.pi
 
 			path_error = -sin(chi_q)*(inpt.pn - inpt.r_path[0]) + cos(chi_q)*(inpt.pe - inpt.r_path[1])
+			
 			# heading command
 			output.chi_c = chi_q - params.chi_infty*2.0/np.pi*atan(params.k_path*path_error)
 
 			# desired altitude
-			h_d = -inpt.r_path[2]-sqrt((inpt.r_path[0] - inpt.pn)**2 + (inpt.r_path[1] - inpt.pe)**2)*(inpt.q_path[2])/sqrtf((input.q_path[0]**2) + (input.q_path[1]**2))
+			h_d = -inpt.r_path[2]-sqrt((inpt.r_path[0] - inpt.pn)**2 + (inpt.r_path[1] - inpt.pe)**2)*(inpt.q_path[2])/sqrt((inpt.q_path[0]**2) + (inpt.q_path[1]**2))
 			
 			# commanded altitude is desired altitude
 			output.h_c = h_d
 		else:
-			rospy.loginfo("Params are: \n params.k_path = %d \n chi_infty = "  params.k_path, params.chi_infty)
-			rospy.loginfo("Params are: \n params.k_orbit = %d \n rho_orbit = \n lam_orbit = " params.k_orbit, inpt.rho_orbit, inpt.lam_orbit)
+			rospy.loginfo("Params are: \n params.k_path = %4.3f \n chi_infty = %5.4f" % (params.k_path, params.chi_infty))
+			rospy.loginfo("Params are: \n params.k_orbit = %3.2f \n rho_orbit = %4.1f\n lam_orbit = %i" % (params.k_orbit, inpt.rho_orbit, inpt.lam_orbit))
 			d = sqrt(((inpt.pn - inpt.c_orbit[0])**2) + ((inpt.pe - inpt.c_orbit[1])**2)) # distance from orbit center
 			# compute wrapped version of angular position on orbit
 			varphi = atan2(inpt.pe - inpt.c_orbit[1], inpt.pn - inpt.c_orbit[0])
@@ -133,7 +139,7 @@ class path_follower_base:
 				varphi -= 2*np.pi
 			# compute orbit error
 			norm_orbit_error = (d - inpt.rho_orbit)/inpt.rho_orbit
-			output.chi_c = varphi + inpt.lam_orbit*(np.pi/2 + atan(params.k_orbit*norm_orbit_error))
+			output.chi_c = varphi + inpt.lam_orbit*(np.pi/2.0 + atan(params.k_orbit*norm_orbit_error))
 
 			# commanded altitude is the height of the orbit
 			h_d = -inpt.c_orbit[2]
