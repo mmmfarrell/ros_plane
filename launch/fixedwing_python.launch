@@ -39,10 +39,14 @@
   </node>
   -->
 
+
+<!-- CONTROLLER -->
+<!-- CPP -->
   <node name="autopilot" pkg="ros_plane" type="ros_plane_controller" >
     <!-- <remap from="command" to="autopilot_command"/> -->
     <remap from="state" to="/junker/truth"/>
   </node>
+
 
 <!-- ESTIMATOR -->
 <!-- CPP -->
@@ -62,6 +66,7 @@
      <remap from="state" to="/junker/truth"/>
   </node>
 
+<!-- CAMERA NODE  -->
   <node name="chase" pkg="image_view" type="image_view">
     <remap from="image" to="/junker/chase/camera/rgb"/>
   </node>
