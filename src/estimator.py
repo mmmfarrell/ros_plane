@@ -173,6 +173,7 @@ class estimator_base:
 
 	# Callback Function
 	def update(self, event):
+		print 'Estimator.update'
 		output = output_s()
 		output = estimate(self.params_, self.input_, output)
 		self.input_.gps_new = False
@@ -199,6 +200,7 @@ class estimator_base:
 		self.vehicle_state_pub_.publish(msg)
 
 	def gpsCallback(self, msg):
+		print 'Estimator.gpsCallback'
 		if (!self.gps_init_):
 			self.gps_init_ = True
 			self.init_alt_ = msg.altitude
@@ -215,6 +217,7 @@ class estimator_base:
 				self.input_.gps_new = True
 
 	def imuCallback(self, msg):
+		print 'Estimator.imuCallback'
 		self.input_.accel_x = msg.linear_acceleration.x
 		self.input_.accel_y = msg.linear_acceleration.y
 		self.input_.accel_z = msg.linear_acceleration.z
@@ -224,12 +227,15 @@ class estimator_base:
 		self.input_.gyro_z = msg.angular_velocity.z
 
 	def baroAltCallback(self, msg):
+		print 'Estimator.baroAltCallback'
 		self.input_.baro_alt = msg.data
 
 	def airspeedCallback(self, msg):
+		print 'Estimator.airspeedCallback'
 		self.input_.diff_pres = msg.fluid_pressure
 
 	def estimate(self, params, inpt, output):
+		print 'Estimator.estimate'
 		if(self.alpha == 0.0): #initailze stuff that comes from params
 			self.R_accel = (params.sigma_accel**2)
 
@@ -297,6 +303,7 @@ class estimator_base:
 			self.f_a[0] = phat + (qhat*sp + rhat*cp)*tt
 			self.f_a[1] = qhat*cp - rhat*sp
 
+			self.A_a = np.zeros((2,2), dtype=np.float32) #2x2 zeros REINIT
 			self.A_a[0][0] = (qhat*cp - rhat*sp)*tt
 			self.A_a[0][1] = (qhat*sp + rhat*cp)/ct/ct
 			self.A_a[1][0] = -qhat*sp - rhat*cp
@@ -314,16 +321,252 @@ class estimator_base:
 
 		# x-axis accelerometer
 		self.h_a = qhat*Vahat*st + self.params.gravity*st
-		self.C_a(1) = qhat*Vahat*ct + self.params.gravity*ct
+		self.C_a = np.zeros((2,), dtype=np.float32) #2 zeros REINITIALIZE
+		self.C_a[1] = qhat*Vahat*ct + self.params.gravity*ct
 		self.L_a = (self.P_a*self.C_a) / (self.R_accel + self.C_a.transpose()*self.P_a*self.C_a) # ???????????? L_a is 2x1 vector????????
 		self.P_a = (I - self.L_a*self.C_a.transpose())*self.P_a
 		self.xhat_a += self.L_a *(self.lpf_accel_x - self.h_a); # input.accel_x - h_a);
 
-		# LINE 150
+		# y-axis accelerometer
+		self.h_a = rhat*Vahat*ct - phat*Vahat*st - self.params.gravity*ct*sp
+		self.C_a = np.zeros((2,), dtype=np.float32) #2 zeros REINITIALIZE
+		self.C_a[0] = -self.params.gravity*cp*ct
+		self.C_a[1] = -rhat*Vahat*st - phat*Vahat*ct + self.params.gravity*st*sp
+		self.L_a = (self.P_a*self.C_a) / (self.R_accel + self.C_a.transpose()*self.P_a*self.C_a)
+		self.P_a = (I - self.L_a*self.C_a.transpose())*self.P_a
+		self.xhat_a += self.L_a *(self.lpf_accel_y - self.h_a) #input.accel_y - h_a);
+
+		# z-axis accelerometer
+		self.h_a = -qhat*Vahat*ct - self.params.gravity*ct*cp
+		self.C_a = np.zeros((2,), dtype=np.float32) #2 zeros REINITIALIZE
+		self.C_a[0] = self.params.gravity*sp*ct
+		self.C_a[1] = (qhat*Vahat + self.params.gravity*cp)*st
+		self.L_a = (self.P_a*self.C_a) / (self.R_accel + self.C_a.transpose()*self.P_a*self.C_a)
+		self.P_a = (I - self.L_a*self.C_a.transpose())*self.P_a
+		self.xhat_a += self.L_a *(self.lpf_accel_z - self.h_a) #input.accel_z - h_a);
+
+		#check_xhat_a();
+		phihat = self.xhat_a[0]
+		thetahat = self.xhat_a[1]
+
+		# implement continous-discrete EKF to estimate pn, pe, chi, Vg
+		# prediction step
+		# float psidot, tmp, Vgdot;
+		if(fabs(self.xhat_p[2]) < 0.01):
+			self.xhat_p[2] = 0.01; # prevent devide by zero
+
+		for i in range(0, self.N_): #(int i=0;i<N_;i++)
+			psidot = (qhat*sin(phihat) + rhat*cos(phihat))/cos(thetahat)
+			tmp = -psidot*Vahat*(self.xhat_p[4]*cos(self.xhat_p[6]) + self.xhat_p[5]*sin(self.xhat_p[6])/self.xhat_p[2]
+			Vgdot = ((Vahat*cos(self.xhat_p[6]) + self.xhat_p[4])*(-psidot*Vahat*sin(self.xhat_p[6])) + (Vahat*sin(self.xhat_p[6]) + self.xhat_p[5])*(psidot*Vahat*cos(self.xhat_p[6]))/self.xhat_p[2]
+
+			self.f_p = np.zeros((7,), dtype=np.float32) #7 REINIT
+			self.f_p[0] = self.xhat_p[2]*cos(self.xhat_p[3])
+			self.f_p[1] = self.xhat_p[2]*sin(self.xhat_p[3])
+			self.f_p[2] = Vgdot
+			self.f_p[3] = self.params.gravity/self.xhat_p[2]*tan(phihat)*cos(self.xhat_p[3] - self.xhat_p[6])
+			self.f_p[6] = psidot
+
+			self.A_p = np.zeros((7,7), dtype=np.float32) #7x7 REINIT
+			self.A_p[0][2] = cos(self.xhat_p[3])
+			self.A_p[0][3] = -self.xhat_p[2]*sin(self.xhat_p[3])
+			self.A_p[1][2] = sin(self.xhat_p[3])
+			self.A_p[1][3] = self.xhat_p[2]*cos(self.xhat_p[3])
+			self.A_p[2][2] = -Vgdot/self.xhat_p[2]
+			self.A_p[2][4] = -psidot*Vahat*sin(self.xhat_p[6])/self.xhat_p[2]
+			self.A_p[2][5] = psidot*Vahat*cos(self.xhat_p[6])/self.xhat_p[2]
+			self.A_p[2][6] = tmp
+			self.A_p[3][2] = -self.params.gravity/(self.xhat_p[2]**2)*tan(phihat)*cos(self.xhat_p[3] - self.xhat_p[6])
+			self.A_p[3][3] = -self.params.gravity/self.xhat_p[2]*tan(phihat)*sin(self.xhat_p[3]- self.xhat_p[6])
+			self.A_p[3][6] = self.params.gravity/self.xhat_p[2]*tan(phihat)*sin(self.xhat_p[3] - self.xhat_p[6])
+
+			self.xhat_p += self.f_p *(self.params.Ts/self.N_)
+			self.P_p += (self.A_p*self.P_p + self.P_p*self.A_p.transpose() + self.Q_p)*(self.params.Ts/self.N_)
+		
+		#    while(xhat_p(3) > radians(180.0f)) xhat_p(3) = xhat_p(3) - radians(360.0f);
+		#    while(xhat_p(3) < radians(-180.0f)) xhat_p(3) = xhat_p(3) + radians(360.0f);
+		#    if(xhat_p(3) > radians(180.0f) || xhat_p(3) < radians(-180.0f))
+		#    {
+		#        ROS_WARN("problem 17");
+		#        xhat_p(3) = 0;
+		#    }
+
+    	# measurement updates
+		if(inpt.gps_new):
+			I_p = np.identity(7, dtype=np.float32) # 7x7 init as Identity
+
+			# gps North position
+			self.h_p = self.xhat_p[0]
+			self.C_p = np.zeros((7,), dtype=np.float32) #7 REINIT
+			self.C_p[0] = 1
+			self.L_p = (self.P_p*self.C_p) / (self.R_p[0][0] + (self.C_p.transpose()*self.P_p*self.C_p))
+			self.P_p = (I_p - self.L_p*self.C_p.transpose())*self.P_p
+			self.xhat_p = self.xhat_p + self.L_p*(inpt.gps_n - self.h_p)
+
+			# gps East position
+			self.h_p = self.xhat_p[1]
+			self.C_p = np.zeros((7,), dtype=np.float32) #7 REINIT
+			self.C_p[1] = 1
+			self.L_p = (self.P_p*self.C_p) / (self.R_p[1][1] + (self.C_p.transpose()*self.P_p*self.C_p))
+			self.P_p = (I_p - self.L_p*self.C_p.transpose())*self.P_p
+			self.xhat_p = self.xhat_p + self.L_p*(inpt.gps_e - self.h_p)
+
+			# gps ground speed
+			self.h_p = self.xhat_p[2]
+			self.C_p = np.zeros((7,), dtype=np.float32) #7 REINIT
+			self.C_p[2] = 1
+			self.L_p = (self.P_p*self.C_p) / (self.R_p[2][2] + (self.C_p.transpose()*self.P_p*self.C_p))
+			self.P_p = (I_p - self.L_p*self.C_p.transpose())*self.P_p
+			self.xhat_p = self.xhat_p + self.L_p*(inpt.gps_Vg - self.h_p)
+
+# HERE
+
+			# gps course
+			if(inpt.gps_Vg > 1):
+				#wrap course measurement
+				gps_course = fmod(inpt.gps_course, self.radians(360.0))
+
+				while(gps_course - self.xhat_p[3] > self.radians(180.0)):
+					gps_course = gps_course - self.radians(360.0)
+				while(gps_course - self.xhat_p[3] < self.radians(-180.0)):
+					gps_course = gps_course + self.radians(360.0)
+				self.h_p = self.xhat_p[3]
+				self.C_p = np.zeros((7,), dtype=np.float32) #7 REINIT
+				self.C_p[3] = 1
+				self.L_p = (self.P_p*self.C_p) / (self.R_p[3][3] + (self.C_p.transpose()*self.P_p*self.C_p))
+				self.P_p = (I_p - self.L_p*self.C_p.transpose())*self.P_p
+				self.xhat_p = self.xhat_p + self.L_p*(gps_course - self.h_p)
+			
+			# // pseudo measurement #1 y_1 = Va*cos(psi)+wn-Vg*cos(chi)
+			# h_p = Vahat*cosf(xhat_p(6)) + xhat_p(4) - xhat_p(2)*cosf(xhat_p(3));  // pseudo measurement
+			# C_p = Eigen::VectorXf::Zero(7);
+			# C_p(2) = -cos(xhat_p(3));
+			# C_p(3) = xhat_p(2)*sinf(xhat_p(3));
+			# C_p(4) = 1;
+			# C_p(6) = -Vahat*sinf(xhat_p(6));
+			# L_p = (P_p*C_p) / (R_p(4,4) + (C_p.transpose()*P_p*C_p));
+			# P_p = (I_p - L_p*C_p.transpose())*P_p;
+			# xhat_p = xhat_p + L_p*(0 - h_p);
+
+			# // pseudo measurement #2 y_2 = Va*sin(psi) + we - Vg*sin(chi)
+			# h_p = Vahat*sinf(xhat_p(6))+xhat_p(5)-xhat_p(2)*sinf(xhat_p(3));  // pseudo measurement
+			# C_p = Eigen::VectorXf::Zero(7);
+			# C_p(2) = -sin(xhat_p(3));
+			# C_p(3) = -xhat_p(2)*cosf(xhat_p(3));
+			# C_p(5) = 1;
+			# C_p(6) = Vahat*cosf(xhat_p(6));
+			# L_p = (P_p*C_p) / (R_p(5,5) + (C_p.transpose()*P_p*C_p));
+			# P_p = (I_p - L_p*C_p.transpose())*P_p;
+			# xhat_p = xhat_p + L_p*(0 - h_p);
+
+			if(self.xhat_p[0] > 10000 or self.xhat_p[0] < -10000):
+				ROS_WARN("gps n problem")
+				self.xhat_p[0] = inpt.gps_n
+			if(self.xhat_p[1] > 10000 or self.xhat_p[1] < -10000):
+				ROS_WARN("gps e problem")
+				self.xhat_p[1] = inpt.gps_e
+
+			# if(xhat_p(2) > 35 || xhat_p(2) < 0)
+			# {
+			#     ROS_WARN("problem 13");
+			#     xhat_p(2) = input.gps_Vg;
+			# }
+			# if(xhat_p(3) > radians(720.0f) || xhat_p(3) < radians(-720.0f))
+			# {
+			#     ROS_WARN("problem 14");
+			#     xhat_p(3) = input.gps_course;
+			# }
+			# if(xhat_p(6) > radians(720.0f) || xhat_p(6) < radians(-720.0f))
+			# {
+			#     ROS_WARN("problem 15");
+			#     xhat_p(6) = input.gps_course;
+			# }
+		problem = False
+		# int prob_index
+		for i in range(0,7): #(int i=0;i<7;i++)
+			if(!np.isfinite(self.xhat_p[i])):
+				if(!problem):
+					problem = True
+					prob_index = i
+				# switch(i)
+				if (i == 0):
+					self.xhat_p[i] = inpt.gps_n
+				elif (i == 1):
+					self.xhat_p[i] = inpt.gps_e
+				elif (i == 2):
+					self.xhat_p[i] = inpt.gps_Vg
+				elif (i == 3):
+					self.xhat_p[i] = inpt.gps_course
+				elif (i == 6):
+					self.xhat_p[i] = inpt.gps_course
+				else:
+					self.xhat_p[i] = 0;
+				
+				self.P_p = np.identity(7, dtype=np.float32) # 7x7 REINIT
+				P_p[0][0] = .03
+				P_p[1][1] = .03
+				P_p[2][2] = .01
+				P_p[3][3] = self.radians(5.0)
+				P_p[4][4] = .04
+				P_p[5][5] = .04
+				P_p[6][6] = self.radians(5.0)
+		if(problem):
+			rospy.logwarn("problem 10 %d %d", prob_index, (1 if inpt.gps_new else 0)) #(inpt.gps_new ? 1 : 0)) # TEST THIS
+		if(self.xhat_p[6] - self.xhat_p[3] > self.radians(360.0) or self.xhat_p[6] - self.xhat_p[3] < self.radians(-360.0)):
+			# xhat_p(3) = fmodf(xhat_p(3),radians(360.0f));
+			self.xhat_p[6] = fmod(self.xhat_p[6],np.pi)
+
+		pnhat = xhat_p[0]
+		pehat = xhat_p[1]
+		Vghat = xhat_p[2]
+		chihat = xhat_p[3]
+		wnhat = xhat_p[4]
+		wehat = xhat_p[5]
+		psihat = xhat_p[6]
+
+		output.pn = pnhat
+		output.pe = pehat
+		output.h = hhat
+		output.Va = Vahat
+		output.alpha = 0
+		output.beta = 0
+		output.phi = phihat
+		output.theta = thetahat
+		output.chi = chihat
+		output.p = phat
+		output.q = qhat
+		output.r = rhat
+		output.Vg = Vghat
+		output.wn = wnhat
+		output.we = wehat
+		output.psi = psihat
+
 		return output
 
 	def check_xhat_a(self):
-		pass
+		print 'Estimator.check_xhat_a'
+		if(self.xhat_a[0] > self.radians(85.0) or self.xhat_a[0] < self.radians(-85.0) or !np.isfinite(self.xhat_a[0])):
+			if(!np.isfinite(self.xhat_a[0])):
+				self.xhat_a[0] = 0
+				self.P_a = np.identity(2, dtype=np.float32) #2x2 REINIT
+				self.P_a *= (self.radians(20.0)**2)
+				rospy.logwarn("problem 00.0")
+			elif(self.xhat_a[0] > self.radians(85.0)):
+				self.xhat_a[0] = self.radians(82.0)
+				rospy.logwarn("problem 00.1")
+			elif(self.xhat_a[0] < self.radians(-85.0)):
+				self.xhat_a[0] = self.radians(-82.0)
+				rospy.logwarn("problem 00.2")
+		if(self.xhat_a[1] > self.radians(80.0) or self.xhat_a[1] < self.radians(-80.0) or !np.isfinite(self.xhat_a[1])):
+			rospy.logwarn("problem 01")
+			if(!np.isfinite(self.xhat_a[1])):
+				self.xhat_a[1] = 0
+				self.P_a = np.identity(2, dtype=np.float32) #2x2 REINIT
+				self.P_a *= (self.radians(20.0)**2)
+			elif(self.xhat_a[1] > self.radians(80.0)):
+				self.xhat_a[1] = self.radians(77.0)
+			elif(self.xhat_a[1] < self.radians(-80.0)):
+				self.xhat_a[1] = self.radians(-77.0)
 
 	def radians(self, degrees):
 		return np.pi*degrees/180.0
