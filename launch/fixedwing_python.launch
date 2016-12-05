@@ -50,7 +50,13 @@
 
 <!-- ESTIMATOR -->
 <!-- CPP -->
-  <node name="estimator" pkg="ros_plane" type="ros_plane_estimator" output="screen">
+<!--   <node name="estimator" pkg="ros_plane" type="ros_plane_estimator" output="screen">
+    <remap from="/baro/alt" to="/junker/baro/data"/>
+    <remap from="/imu/data" to="/junker/imu/data"/>
+    <remap from="/airspeed/data" to="/junker/airspeed/data"/>
+  </node> -->
+<!-- PYTHON -->
+  <node name="estimator" pkg="ros_plane" type="estimator.py" output="screen">
     <remap from="/baro/alt" to="/junker/baro/data"/>
     <remap from="/imu/data" to="/junker/imu/data"/>
     <remap from="/airspeed/data" to="/junker/airspeed/data"/>
@@ -62,7 +68,7 @@
      <remap from="state" to="/junker/truth"/>
   </node> -->
 <!-- PYTHON -->
-  <node name="pathfollower" pkg="ros_plane" type="path_follower.py" output="screen">
+  <node name="pathfollower" pkg="ros_plane" type="path_follower.py"> <!-- output="screen"> -->
      <remap from="state" to="/junker/truth"/>
   </node>
 
