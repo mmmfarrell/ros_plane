@@ -37,14 +37,24 @@ make sure to only have one of each node uncommented. -->
   </node>
   -->
 
+
+<!-- CONTROLLER -->
+<!-- CPP -->
   <node name="autopilot" pkg="ros_plane" type="ros_plane_controller" >
     <!-- <remap from="command" to="autopilot_command"/> -->
     <remap from="state" to="/junker/truth"/>
   </node>
 
+
 <!-- ESTIMATOR -->
 <!-- CPP -->
-  <node name="estimator" pkg="ros_plane" type="ros_plane_estimator" output="screen">
+<!--   <node name="estimator" pkg="ros_plane" type="ros_plane_estimator" output="screen">
+    <remap from="/baro/alt" to="/junker/baro/data"/>
+    <remap from="/imu/data" to="/junker/imu/data"/>
+    <remap from="/airspeed/data" to="/junker/airspeed/data"/>
+  </node> -->
+<!-- PYTHON -->
+  <node name="estimator" pkg="ros_plane" type="estimator.py" output="screen">
     <remap from="/baro/alt" to="/junker/baro/data"/>
     <remap from="/imu/data" to="/junker/imu/data"/>
     <remap from="/airspeed/data" to="/junker/airspeed/data"/>
@@ -56,10 +66,11 @@ make sure to only have one of each node uncommented. -->
      <remap from="state" to="/junker/truth"/>
   </node> -->
 <!-- PYTHON -->
-  <node name="pathfollower" pkg="ros_plane" type="path_follower.py" output="screen">
+  <node name="pathfollower" pkg="ros_plane" type="path_follower.py"> <!-- output="screen"> -->
      <remap from="state" to="/junker/truth"/>
   </node>
 
+<!-- CAMERA NODE  -->
   <node name="chase" pkg="image_view" type="image_view">
     <remap from="image" to="/junker/chase/camera/rgb"/>
   </node>
