@@ -310,7 +310,7 @@ class estimator_base:
 			self.A_a[1][0] = -qhat*sp - rhat*cp
 
 			self.xhat_a += self.f_a *(params.Ts/self.N_)
-			self.P_a += (self.A_a*self.P_a + self.P_a*self.A_a.transpose() + self.Q_a)*(params.Ts/self.N_)
+			self.P_a += (np.dot(self.A_a,self.P_a) + np.dot(self.P_a*self.A_a.transpose()) + self.Q_a)*(params.Ts/self.N_)
 
 		# measurement updates
 		cp = cos(self.xhat_a[0])
