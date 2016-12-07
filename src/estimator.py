@@ -151,7 +151,7 @@ class estimator_base:
 	L_a = np.zeros((2,), dtype=np.float32) #2
 
 	Q_p = np.identity(7, dtype=np.float32) #7x7 init as Identity
-	R_p = np.zeros((6,6), dtype=np.float32) #6x6 init as zeros
+	R_p = np.zeros((7,7), dtype=np.float32) #6x6 init as zeros
 	f_p = np.zeros((7,), dtype=np.float32) #7
 	A_p = np.zeros((7,7), dtype=np.float32) #7x7
 	h_p = 0.0
@@ -160,7 +160,7 @@ class estimator_base:
 
 	# private from estimator_base
 	gps_new_ = True 	# bool
-	gps_init_ = True 	# bool
+	gps_init_ = False 	# bool
 	init_lat_ = 0.0 	# double # initial latitude in degrees
 	init_lon_ = 0.0		# double # initial longitude in degrees
 	init_alt_ = 0.0 	# float # initial altitude in meters above MSL
@@ -207,12 +207,20 @@ class estimator_base:
 			self.init_alt_ = msg.altitude
 			self.init_lat_ = msg.latitude
 			self.init_lon_ = msg.longitude
+			print 'GPS INIT VALUES'
+			print self.init_alt_ 
+			print self.init_lat_
+			print self.init_lon_
 		else:
 			self.input_.gps_n = EARTH_RADIUS*(msg.latitude - self.init_lat_)*np.pi/180.0
 			self.input_.gps_e = EARTH_RADIUS*cos(self.init_lat_*np.pi/180.0)*(msg.longitude - self.init_lon_)*np.pi/180.0
 			self.input_.gps_h = msg.altitude - self.init_alt_
 			self.input_.gps_Vg = msg.speed
-			print 'N, E, H, VG from GPS' + self.input_.gps_n + self.input_.gps_e + self.input_.gps_h + self.input_.gps_Vg
+			print 'N, E, H, VG from GPS' 
+			print self.input_.gps_n 
+			print self.input_.gps_e 
+			print self.input_.gps_h 
+			print self.input_.gps_Vg
 			if(msg.speed > 0.3):
 				self.input_.gps_course = msg.ground_course
 			if(msg.fix == True and msg.NumSat >= 4):
@@ -311,7 +319,7 @@ class estimator_base:
 			self.A_a[1][0] = -qhat*sp - rhat*cp
 
 			self.xhat_a += self.f_a *(params.Ts/self.N_)
-			self.P_a += (np.dot(self.A_a,self.P_a) + np.dot(self.P_a*self.A_a.transpose()) + self.Q_a)*(params.Ts/self.N_)
+			self.P_a += (np.dot(self.A_a,self.P_a) + np.dot(self.P_a,self.A_a.transpose()) + self.Q_a)*(params.Ts/self.N_)
 
 		# measurement updates
 		cp = cos(self.xhat_a[0])
