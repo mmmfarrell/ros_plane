@@ -212,6 +212,7 @@ class estimator_base:
 			self.input_.gps_e = EARTH_RADIUS*cos(self.init_lat_*np.pi/180.0)*(msg.longitude - self.init_lon_)*np.pi/180.0
 			self.input_.gps_h = msg.altitude - self.init_alt_
 			self.input_.gps_Vg = msg.speed
+			print 'N, E, H, VG from GPS' + self.input_.gps_n + self.input_.gps_e + self.input_.gps_h + self.input_.gps_Vg
 			if(msg.speed > 0.3):
 				self.input_.gps_course = msg.ground_course
 			if(msg.fix == True and msg.NumSat >= 4):
@@ -279,7 +280,7 @@ class estimator_base:
 
 		if(not np.isfinite(Vahat) or Vahat <= 0 or Vahat > 25):
 			# ROS_WARN("problem 21");
-			Vahat = 9 # WHY IS THIS HERE??????
+			Vahat = Vahat #9 # WHY IS THIS HERE??????
 
 		# low pass filter accelerometers
 		self.lpf_accel_x = self.alpha*self.lpf_accel_x + (1-self.alpha)*inpt.accel_x
