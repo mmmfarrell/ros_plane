@@ -79,11 +79,24 @@ class path_manager_base:
  	class params_s:
  		R_min = 0.0 # Minimum turning radius
 
+	# enum classes
+	class fillet_state:
+		Straight = 0
+		Orbit
+
+	class dubin_state: 
+		First = 0
+		Before_H1 = 1
+		Before_H1_wrong_side = 2
+		Straight = 3
+		Before_H3 = 4
+		Before_H3_wrong_side = 5
+
 	# Class members
 	_num_waypoints = 0
 	_vehicle_state = FW_State()
-	fillet_state = 'Straight' # 'Straight' or 'Orbit'
-	dubin_state = 'First' #'First', 'Before_H1', 'Before_H1_wrong_side', 'Straight', 'Before_H3', 'Before_H3_wrong_side'
+	_fil_state = self.fillet_state.Straight# = 'Straight' # 'Straight' or 'Orbit'
+	_dub_state = self.dubin_state.First # = 'First' #'First', 'Before_H1', 'Before_H1_wrong_side', 'Straight', 'Before_H3', 'Before_H3_wrong_side'
 	_waypoints = [waypoint_temp() for _ in range(SIZE_WAYPOINT_ARRAY)]
 	params = params_s()
 
@@ -312,9 +325,9 @@ class path_manager_base:
 
 		z = np.array([0.0, 0.0, 0.0])
 
-		print self.fillet_state
+		print self._fil_state
 
-		if self.fillet_state == 'Straight':
+		if (self._fil_state == self.fillet_state.Straight):
 			output.flag = True
 			output.q = [q_im1[0], q_im1[1], q_im1[2]]
 
@@ -335,9 +348,9 @@ class path_manager_base:
 			# print self.dot((p-z),q_im1)
 
 			if(self.dot((p-z),q_im1) > 0):
-				self.fillet_state = 'Orbit'
+				self._fil_state = self.fillet_state.Orbit
 
-		elif self.fillet_state == 'Orbit':
+		elif self._fil_state == self.fillet_state.Orbit:
 			output.flag = False
 			output.q = [q_i[0], q_i[1], q_i[2]]
 			c = w_i - self.normalize(q_im1-q_i)*(R_min/sin(beta/2.0))
@@ -349,7 +362,7 @@ class path_manager_base:
 					self.index_a = 0
 				else:
 					self.index_a += 1
-				self.fillet_state = 'Straight'
+				self._fil_state == self.fillet_state.Straight
 
 
 	def manage_dubins(self, params, inpt, output):
@@ -359,9 +372,9 @@ class path_manager_base:
 
 		R_min = params.R_min
 
-		print self.dubin_state
+		print self._dub_state
 
-		if self.dubin_state == 'First':
+		if (self._dub_state == self.dubin_state.First):
 			self.dubinsParameters(self._waypoints[0], self._waypoints[1], R_min)
 			output.flag = False
 			output.Va_d = self._waypoints[self.index_a].Va_d;
@@ -377,11 +390,11 @@ class path_manager_base:
 			output.rho = self._dubinspath.R
 			output.lambda_ = self._dubinspath.lams
 			if(self.dot((p - self._dubinspath.w1), self._dubinspath.q1) >= 0): # start in H1
-				self.dubin_state ='Before_H1_wrong_side'
+				self._dub_state = self.dubin_state.Before_H1_wrong_side
 			else:
-				self.dubin_state = 'Before_H1'
+				self._dub_state = self.dubin_state.Before_H1
 
-		elif self.dubin_state == 'Before_H1':
+		elif (self._dub_state == self.dubin_state.Before_H1):
 			output.flag = False
 			output.Va_d = self._waypoints[self.index_a].Va_d
 			output.r[0] = 0
@@ -396,9 +409,9 @@ class path_manager_base:
 			output.rho = self._dubinspath.R
 			output.lambda_ = self._dubinspath.lams
 			if(self.dot(p - self._dubinspath.w1, self._dubinspath.q1) >= 0): # entering H1
-				self.dubin_state ='Straight'
+				self._dub_state = self.dubin_state.Straight
 
-		elif self.dubin_state == 'Before_H1_wrong_side':
+		elif (self._dub_state == self.dubin_state.Before_H1_wrong_side):
 			output.flag = False
 			output.Va_d = self._waypoints[self.index_a].Va_d
 			output.r[0] = 0
@@ -413,9 +426,9 @@ class path_manager_base:
 			output.rho = self._dubinspath.R
 			output.lambda_ = _dubinspath.lams
 			if(self.dot(p - self._dubinspath.w1, self._dubinspath.q1) < 0): # exit H1
-				self.dubin_state ='Before_H1'
+				self._dub_state = self.dubin_state.Before_H1
 
-		elif self.dubin_state == 'Straight':
+		elif (self._dub_state == self.dubin_state.Straight):
 			output.flag = True
 			output.Va_d = self._waypoints[self.index_a].Va_d
 			output.r[0] = self._dubinspath.w1[0]
@@ -431,11 +444,11 @@ class path_manager_base:
 			output.lambda_ = 1
 			if(self.dot(p - self._dubinspath.w2, self._dubinspath.q1) >= 0): # entering H2
 				if(self.dot(p - self._dubinspath.w3, self._dubinspath.q3) >= 0): # start in H3
-					dubin_state = 'Before_H3_wrong_side'
+					self._dub_state = self.dubin_state.Before_H3_wrong_side
 				else:
-					dubin_state = 'Before_H3'
+					self._dub_state = self.dubin_state.Before_H3
 
-		elif self.dubin_state == 'Before_H3':
+		elif (self._dub_state == self.dubin_state.Before_H3):
 			output.flag = False
 			output.Va_d = self._waypoints[self.index_a].Va_d
 			output.r[0] = 0
@@ -471,12 +484,12 @@ class path_manager_base:
 
 				#start new path
 				if(self.dot(p - self._dubinspath.w1, self._dubinspath.q1) >= 0): # start in H1
-					dubin_state = 'Before_H1_wrong_side'
+					self._dub_state = self.dubin_state.Before_H1_wrong_side
 				else:
-					dubin_state = 'Before_H1'
+					self._dub_state = self.dubin_state.Before_H1
 				
 
-		elif self.dubin_state == 'Before_H3_wrong_side':
+		elif (self._dub_state == self.dubin_state.Before_H3_wrong_side):
 			output.flag = False
 			output.Va_d = self._waypoints[self.index_a].Va_d
 			output.r[0] = 0
@@ -491,7 +504,7 @@ class path_manager_base:
 			output.rho = self._dubinspath.R
 			output.lambda_ = self._dubinspath.lame
 			if(self.dot(p - self._dubinspath.w3, self._dubinspath.q3) < 0): # exit H3
-				dubin_state = 'Before_H1'
+				self._dub_state = self.dubin_state.Before_H1
 
 		return output
 

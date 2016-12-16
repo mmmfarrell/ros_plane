@@ -207,20 +207,20 @@ class estimator_base:
 			self.init_alt_ = msg.altitude
 			self.init_lat_ = msg.latitude
 			self.init_lon_ = msg.longitude
-			print 'GPS INIT VALUES'
-			print self.init_alt_ 
-			print self.init_lat_
-			print self.init_lon_
+			# print 'GPS INIT VALUES'
+			# print self.init_alt_ 
+			# print self.init_lat_
+			# print self.init_lon_
 		else:
 			self.input_.gps_n = EARTH_RADIUS*(msg.latitude - self.init_lat_)*np.pi/180.0
 			self.input_.gps_e = EARTH_RADIUS*cos(self.init_lat_*np.pi/180.0)*(msg.longitude - self.init_lon_)*np.pi/180.0
 			self.input_.gps_h = msg.altitude - self.init_alt_
 			self.input_.gps_Vg = msg.speed
-			print 'N, E, H, VG from GPS' 
-			print self.input_.gps_n 
-			print self.input_.gps_e 
-			print self.input_.gps_h 
-			print self.input_.gps_Vg
+			# print 'N, E, H, VG from GPS' 
+			# print self.input_.gps_n 
+			# print self.input_.gps_e 
+			# print self.input_.gps_h 
+			# print self.input_.gps_Vg
 			if(msg.speed > 0.3):
 				self.input_.gps_course = msg.ground_course
 			if(msg.fix == True and msg.NumSat >= 4):
@@ -286,9 +286,9 @@ class estimator_base:
 		#     hhat = 10;
 		# }
 
-		if(not np.isfinite(Vahat) or Vahat <= 0 or Vahat > 25):
+		if(not np.isfinite(Vahat) or Vahat <= 0 or Vahat > 50): # CHANGED FROM 25 to 50 b/c flying @ 30
 			# ROS_WARN("problem 21");
-			Vahat = Vahat #9 # WHY IS THIS HERE??????
+			Vahat = 30 #9 # Changed to 30
 
 		# low pass filter accelerometers
 		self.lpf_accel_x = self.alpha*self.lpf_accel_x + (1-self.alpha)*inpt.accel_x
@@ -361,7 +361,7 @@ class estimator_base:
 		self.P_a = np.dot((I - np.dot(self.L_a,self.C_a.transpose())),self.P_a)
 		self.xhat_a += self.L_a *(self.lpf_accel_z - self.h_a) #input.accel_z - h_a);
 
-		#check_xhat_a();
+		self.check_xhat_a();
 		phihat = self.xhat_a[0]
 		thetahat = self.xhat_a[1]
 
@@ -506,6 +506,9 @@ class estimator_base:
 			#     xhat_p(6) = input.gps_course;
 			# }
 		problem = False
+
+		print 'xhat_p'
+		print self.xhat_p
 		# int prob_index
 		for i in range(0,7): #(int i=0;i<7;i++)
 			if(not np.isfinite(self.xhat_p[i])):
@@ -535,7 +538,7 @@ class estimator_base:
 				self.P_p[5][5] = .04
 				self.P_p[6][6] = self.radians(5.0)
 		if(problem):
-			rospy.logwarn("problem 10 %d %d", prob_index, (1 if inpt.gps_new else 0)) #(inpt.gps_new ? 1 : 0)) # TEST THIS
+			rospy.logwarn("problem 10 %d %d", prob_index, (1 if inpt.gps_new else 0)) #(inpt.gps_new ? 1 : 0))
 		if(self.xhat_p[6] - self.xhat_p[3] > self.radians(360.0) or self.xhat_p[6] - self.xhat_p[3] < self.radians(-360.0)):
 			# xhat_p(3) = fmodf(xhat_p(3),radians(360.0f));
 			self.xhat_p[6] = fmod(self.xhat_p[6],np.pi)
