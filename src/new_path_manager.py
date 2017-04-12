@@ -26,7 +26,7 @@ class path_manager_base:
 		# print 'Base Init'
 
 		# Init Params
-		self.params.R_min = rospy.get_param('R_min',200.0)
+		self.params.R_min = rospy.get_param('R_min', 200.0)
 
 		# run waypoint init to initialize with waypoints found in waypoint_init (alternative to path_planner.py)
 		# self.waypoint_init()
@@ -37,6 +37,8 @@ class path_manager_base:
 
 		# Init Publishers
 		self._current_path_pub = rospy.Publisher('current_path', FW_Current_Path, queue_size=10)
+
+		self.index_a = 0	
 
 	# Subclasses
 	class waypoint_s:
@@ -79,11 +81,6 @@ class path_manager_base:
  	class params_s:
  		R_min = 0.0 # Minimum turning radius
 
-	# enum classes
-	class fillet_state:
-		Straight = 0
-		Orbit = 1
-
 	class dubin_state: 
 		First = 0
 		Before_H1 = 1
@@ -98,7 +95,8 @@ class path_manager_base:
 	_fil_state = 0#self.fillet_state.Straight# = 'Straight' # 'Straight' or 'Orbit'
 	_dub_state = 0#self.dubin_state.First # = 'First' #'First', 'Before_H1', 'Before_H1_wrong_side', 'Straight', 'Before_H3', 'Before_H3_wrong_side'
 	_waypoints = [waypoint_temp() for _ in range(SIZE_WAYPOINT_ARRAY)]
-	params = params_s()
+	# params = params_s()
+	# params
 
 
  	# Class Member Functions
@@ -205,7 +203,7 @@ class path_manager_base:
 
 	# Member objects
 	_dubinspath = dubinspath_s()
-	index_a = 0	
+	
 
 	# functions
 	def manage(self, params, inpt, output):
@@ -232,138 +230,12 @@ class path_manager_base:
 			else:
 				# print 'Manage -- Line'
 				# output = self.manage_line(params, inpt, output)
-				print 'Manage -- Fillet'
-				self.manage_fillet(params,inpt,output)
+				# print 'Manage -- Fillet'
+				# self.manage_fillet(params,inpt,output)
+				rospy.logwarn('ERROR: MUST RUN DUBINS PATH (set chi_valid to True)')
 		return output
 
-	def manage_line(self, params, inpt, output):
-		# print 'Def Manage Line'
-		# print params.R_min
-		p = np.array([inpt.pn, inpt.pe, -inpt.h])
-
-		a = self._waypoints[self.index_a]
-		b = self.waypoint_temp()
-		c = self.waypoint_temp()
-
-		if (self.index_a == (self._num_waypoints - 1)):
-			b = self._waypoints[0]
-			c = self._waypoints[1]
-		elif (self.index_a == (self._num_waypoints - 2)):
-			b = self._waypoints[self._num_waypoints - 1]
-			c = self._waypoints[0]
-		else:
-			b = self._waypoints[self.index_a + 1]
-			c = self._waypoints[self.index_a + 2]
-
-		# print 'waypoint b'
-		# print b
-		# print 'waypoint c'
-		# print c
-
-		w_im1 = np.array([a.w0,a.w1,a.w2])
-		w_i = np.array([b.w0,b.w1,b.w2])
-		w_ip1 = np.array([c.w0,c.w1,c.w2])
-
-		output.flag = True
-		output.Va_d = a.Va_d
-		output.r = [w_im1[0],w_im1[1],w_im1[2]]
-
-		q_im1 = self.normalize(w_i - w_im1)
-
-		q_i = self.normalize(w_ip1 - w_i)
-		output.q = [q_im1[0],q_im1[1],q_im1[2]]
-		output.c = [1, 1, 1]
-		output.rho = 1
-		output.lambda_ = 1
-
-		n_i = self.normalize(q_im1 + q_i)
-		if (self.dot((p - w_i),n_i) > 0.0):
-			if (self.index_a == (self._num_waypoints - 1)):
-				self.index_a = 0
-			else:
-				self.index_a += 1
-
-		return output
-
-	def manage_fillet(self, params, inpt, output):
-		# I think fillet path works, just have to be careful with the waypoints entered
-		print 'Def Manage Fillet'
-
-		p = np.array([inpt.pn, inpt.pe, -inpt.h])
-
-		a = self._waypoints[self.index_a]
-		b = self.waypoint_temp()
-		c = self.waypoint_temp()
-
-		if (self.index_a == (self._num_waypoints - 1)):
-			b = self._waypoints[0]
-			c = self._waypoints[1]
-		elif (self.index_a == (self._num_waypoints - 2)):
-			b = self._waypoints[self._num_waypoints - 1]
-			c = self._waypoints[0]
-		else:
-			b = self._waypoints[self.index_a + 1]
-			c = self._waypoints[self.index_a + 2]
-
-		# print 'waypoint b'
-		# print b
-		# print 'waypoint c'
-		# print c
-
-		w_im1 = np.array([a.w0,a.w1,a.w2])
-		w_i = np.array([b.w0,b.w1,b.w2])
-		w_ip1 = np.array([c.w0,c.w1,c.w2])
-
-		R_min = params.R_min
-
-		output.Va_d = a.Va_d
-		output.r = [w_im1[0],w_im1[1],w_im1[2]]
-
-		q_im1 = self.normalize(w_i - w_im1)
-		q_i = self.normalize(w_ip1 - w_i)
-		beta = acos(self.dot((-q_im1), q_i))
-
-		z = np.array([0.0, 0.0, 0.0])
-
-		print ('self._fil_state')
-		print self._fil_state
-
-		if (self._fil_state == self.fillet_state.Straight):
-			output.flag = True
-			output.q = [q_im1[0], q_im1[1], q_im1[2]]
-
-			output.c = [1, 1, 1]
-			output.rho = 1
-			output.lambda_ = 1
-
-			z = w_i - q_im1*(R_min/tan(beta/2.0))
-
-			# # Test Prints
-			# print 'beta'
-			# # print beta
-			# print 'z'
-			# print z
-			# print '(p-z)'
-			# print (p-z)
-			# print 'self.dot((p-z),q_im1)'
-			# print self.dot((p-z),q_im1)
-
-			if(self.dot((p-z),q_im1) > 0):
-				self._fil_state = self.fillet_state.Orbit
-
-		elif self._fil_state == self.fillet_state.Orbit:
-			output.flag = False
-			output.q = [q_i[0], q_i[1], q_i[2]]
-			c = w_i - self.normalize(q_im1-q_i)*(R_min/sin(beta/2.0))
-			output.c = [c[0], c[1], c[2]]
-			output.rho = R_min
-			output.lambda_ = 1 if (q_im1[0]*q_i[1]-q_im1[1]*q_i[0]) > 0 else -1
-			if (self.dot((p-z),q_i) > 0):
-				if self.index_a == (self._num_waypoints - 1):
-					self.index_a = 0
-				else:
-					self.index_a += 1
-				self._fil_state == self.fillet_state.Straight
+	
 
 
 	def manage_dubins(self, params, inpt, output):
