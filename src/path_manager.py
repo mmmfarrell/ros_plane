@@ -23,7 +23,7 @@ class path_manager_base:
 
 	# Init function
 	def __init__(self):
-		print 'Base Init'
+		# print 'Base Init'
 
 		# Init Params
 		self.params.R_min = rospy.get_param('R_min',200.0)
@@ -82,7 +82,7 @@ class path_manager_base:
 	# enum classes
 	class fillet_state:
 		Straight = 0
-		Orbit
+		Orbit = 1
 
 	class dubin_state: 
 		First = 0
@@ -95,15 +95,15 @@ class path_manager_base:
 	# Class members
 	_num_waypoints = 0
 	_vehicle_state = FW_State()
-	_fil_state = self.fillet_state.Straight# = 'Straight' # 'Straight' or 'Orbit'
-	_dub_state = self.dubin_state.First # = 'First' #'First', 'Before_H1', 'Before_H1_wrong_side', 'Straight', 'Before_H3', 'Before_H3_wrong_side'
+	_fil_state = 0#self.fillet_state.Straight# = 'Straight' # 'Straight' or 'Orbit'
+	_dub_state = 0#self.dubin_state.First # = 'First' #'First', 'Before_H1', 'Before_H1_wrong_side', 'Straight', 'Before_H3', 'Before_H3_wrong_side'
 	_waypoints = [waypoint_temp() for _ in range(SIZE_WAYPOINT_ARRAY)]
 	params = params_s()
 
 
  	# Class Member Functions
 	def waypoint_init(self):
-		print 'Waypoint Init'
+		# print 'Waypoint Init'
 		self._waypoints[self._num_waypoints].w0  	 = 0
 		self._waypoints[self._num_waypoints].w1      = 0
 		self._waypoints[self._num_waypoints].w2      = -100
@@ -147,7 +147,7 @@ class path_manager_base:
 		# self.waypointprint()
 
   	def vehicle_state_callback(self, msg):
-		print 'Vehicle State Callback'
+		# print 'Vehicle State Callback'
 		self._vehicle_state = msg
 		inpt = self.input_s() # set inpt to _vehicle_state
 		inpt.pn = self._vehicle_state.position[0]
@@ -160,7 +160,7 @@ class path_manager_base:
 		self.current_path_publisher(outputs) 	# publish current_path from outputs
 
   	def new_waypoint_callback(self, msg):
-  		print 'New Waypoint Callback'
+  		# print 'New Waypoint Callback'
   		# add new waypoint to self._waypoint array or waypoints
 		self._waypoints[self._num_waypoints].w0      = msg.w[0]
 		self._waypoints[self._num_waypoints].w1      = msg.w[1]
@@ -171,7 +171,7 @@ class path_manager_base:
 		self._num_waypoints+=1
 
 	def current_path_publisher(self, output):
-		print 'Current Path Publisher'
+		# print 'Current Path Publisher'
 		current_path = FW_Current_Path()
 		# set current_path to output from manager
 		current_path.flag = output.flag
@@ -209,7 +209,7 @@ class path_manager_base:
 
 	# functions
 	def manage(self, params, inpt, output):
-		print 'Manage'
+		# print 'Manage'
 		if (self._num_waypoints < 2):
 			output.flag = True
 			output.Va_d = 9
@@ -227,7 +227,7 @@ class path_manager_base:
 		else:
 
 			if (self._waypoints[self.index_a].chi_valid): 
-				print 'Manage -- Dubins'
+				# print 'Manage -- Dubins'
 				output = self.manage_dubins(params, inpt, output)
 			else:
 				# print 'Manage -- Line'
@@ -237,7 +237,7 @@ class path_manager_base:
 		return output
 
 	def manage_line(self, params, inpt, output):
-		print 'Def Manage Line'
+		# print 'Def Manage Line'
 		# print params.R_min
 		p = np.array([inpt.pn, inpt.pe, -inpt.h])
 
@@ -325,6 +325,7 @@ class path_manager_base:
 
 		z = np.array([0.0, 0.0, 0.0])
 
+		print ('self._fil_state')
 		print self._fil_state
 
 		if (self._fil_state == self.fillet_state.Straight):
@@ -366,7 +367,7 @@ class path_manager_base:
 
 
 	def manage_dubins(self, params, inpt, output):
-		print 'Def Manage Dubins'
+		# print 'Def Manage Dubins'
 
 		p = np.array([inpt.pn, inpt.pe, -inpt.h])
 
@@ -424,7 +425,7 @@ class path_manager_base:
 			output.c[1] = self._dubinspath.cs[1]
 			output.c[2] = self._dubinspath.cs[2]
 			output.rho = self._dubinspath.R
-			output.lambda_ = _dubinspath.lams
+			output.lambda_ = self._dubinspath.lams
 			if(self.dot(p - self._dubinspath.w1, self._dubinspath.q1) < 0): # exit H1
 				self._dub_state = self.dubin_state.Before_H1
 
@@ -541,6 +542,7 @@ class path_manager_base:
 		if (ell < 2*R):
 			print 'The distance between nodes must be larger than 2R'
 		else:
+			print('dubinsParams')
 			self._dubinspath.ps[0] = start_node.w0
 			self._dubinspath.ps[1] = start_node.w1
 			self._dubinspath.ps[2] = start_node.w2

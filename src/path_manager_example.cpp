@@ -33,9 +33,11 @@ void path_manager_example::manage(const params_s &params, const input_s &input, 
         if(_ptr_a->chi_valid)
         {
             manage_dubins(params, input, output);
+            ROS_WARN("dubins");
         } else {
             /** Switch the following for flying directly to waypoints, or filleting corners */
            manage_line(params, input, output);
+           ROS_WARN("manage line");
             // manage_fillet(params, input, output);
         }
     }

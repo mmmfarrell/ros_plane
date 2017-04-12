@@ -58,16 +58,16 @@
     <remap from="image" to="/junker/chase/camera/rgb"/>
   </node>
 
-  <!--<node name="reconfig" pkg="rqt_reconfigure" type="rqt_reconfigure"/> -->
+  <node name="reconfig" pkg="rqt_reconfigure" type="rqt_reconfigure"/> 
 
-  <node name="pathmanager" pkg="ros_plane" type="ros_plane_path_manager">
+  <!-- <node name="pathmanager" pkg="ros_plane" type="ros_plane_path_manager">
      <remap from="state" to="/junker/truth"/>
-  </node>
+  </node> -->
 <!-- 
   <node name="pathplanner" pkg="ros_plane" type="ros_plane_path_planner">
   </node> -->
-  <node name="pathplanner" pkg="ros_plane" type="path_planner.py">
-  </node>
+ <!--  <node name="pathplanner" pkg="ros_plane" type="path_planner.py">
+  </node> -->
 
   <node name="plotter" pkg="ros_plane" type="plot_subscriber.py">
   </node>
