@@ -90,7 +90,7 @@ make sure to only have one of each node uncommented. -->
      <remap from="state" to="/junker/truth"/>
   </node> -->
 <!-- PYTHON -->
-  <node name="pathmanager" pkg="ros_plane" type="path_manager.py" output="screen">
+  <node name="pathmanager" pkg="ros_plane" type="new_path_manager.py" output="screen">
      <remap from="state" to="/junker/truth"/>
   </node>
 
