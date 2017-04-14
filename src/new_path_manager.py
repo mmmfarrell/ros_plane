@@ -12,12 +12,27 @@ import numpy as np
 #import Eigen
 #from ros_plane import ControllerConfig
 
-# Set size of waypoint array (max # of waypoints)
-SIZE_WAYPOINT_ARRAY = 20
-
 # These were global constants in the cpp files, can change to np.pi and np.pi/2 
 M_PI_F = 3.14159265358979323846
 M_PI_2_F = 1.57079632679489661923
+
+def crossed_plane(plane_point, normal, loc):
+	crossed = False
+	point_diff = loc - plane_point
+	# print 'loc'
+	# print loc
+	# print 'plane_point'
+	# print plane_point
+	# print 'normal'
+	# print normal
+	dot_prod = np.dot(point_diff.reshape((1, 3)), normal)
+	if dot_prod > 0:
+		crossed = True
+	return crossed
+	
+def mod2pi(phi):
+	mod = phi%(2 * np.pi)
+	return mod
 
 class path_manager_base:
 
@@ -26,10 +41,8 @@ class path_manager_base:
 		# print 'Base Init'
 
 		# Init Params
+		self.params = self.params_s()
 		self.params.R_min = rospy.get_param('R_min', 200.0)
-
-		# run waypoint init to initialize with waypoints found in waypoint_init (alternative to path_planner.py)
-		# self.waypoint_init()
 
 		# inititlialize subscribers
 		self._vehicle_state_sub = rospy.Subscriber('state', FW_State, self.vehicle_state_callback)
@@ -37,8 +50,24 @@ class path_manager_base:
 
 		# Init Publishers
 		self._current_path_pub = rospy.Publisher('current_path', FW_Current_Path, queue_size=10)
+		self._current_wp_pub = rospy.Publisher('current_waypoint', FW_Waypoint, queue_size=10)
 
-		self.index_a = 0	
+		self.index_a = 1 #waypoint 0 should be initial position, waypoint 1 where you want to start flying to	
+
+		# Class members
+		self._num_waypoints = 0
+		self._vehicle_state = FW_State()
+
+		self._dubins_mark = self.dubin_state()
+		self._dub_state = self._dubins_mark.First #self.dubin_state.First # = 'First' #'First', 'Before_H1', 'Before_H1_wrong_side', 'Straight', 'Before_H3', 'Before_H3_wrong_side'
+		self.state = 1
+		# Member objects
+		self._dubinspath = self.dubinspath_s()
+
+		self._waypoints = []
+
+		# run waypoint init to initialize with waypoints found in waypoint_init (alternative to path_planner.py)
+		self.waypoint_init()
 
 	# Subclasses
 	class waypoint_s:
@@ -49,9 +78,10 @@ class path_manager_base:
 
 		def __str__(self):
 			return "w: " + str(self.w) + "\nchi_d: " + str(self.chi_d) + "\nchi_valid: " + str(self. chi_valid) + "\nVa_d: " + str(self.Va_d)
-
+		def __repr__(self):
+			return str(self)
 	# I had problems with an array of instances of waypoint_s because of the w array, so here's my temporary fix
-	class waypoint_temp:
+	class waypoint_temp: 
 		w0 = 0.0
 		w1 = 0.0
 		w2 = 0.0
@@ -62,24 +92,24 @@ class path_manager_base:
 		def __str__(self):
 			return "w: " + str([self.w0,self.w1,self.w2]) + "\nchi_d: " + str(self.chi_d) + "\nchi_valid: " + str(self. chi_valid) + "\nVa_d: " + str(self.Va_d)
 
- 	class input_s:
-	 	pn = 0.0 # position North
-	 	pe = 0.0 # position East
-	 	h = 0.0 # Altitude
-	 	chi = 0.0 # course angle
+	class input_s:
+		pn = 0.0 # position North
+		pe = 0.0 # position East
+		h = 0.0 # Altitude
+		chi = 0.0 # course angle
 
- 	# output for current_path
- 	class output_s:
-	 	flag = True # Inicates strait line or orbital path (true is line, false is orbit)
-	 	Va_d = 0.0 # Desired airspeed (m/s)
-	 	r = [0.0, 0.0, 0.0] # Vector to origin of straight line path (m)
-	 	q = [0.0, 0.0, 0.0] # Unit vector, desired direction of travel for line path
-	 	c = [0.0, 0.0, 0.0] # Center of orbital path (m)
-	 	rho = 0.0 # Radius of orbital path (m)
-	 	lambda_ = 1 # Direction of orbital path (cw is 1, ccw is -1)
+	# output for current_path
+	class output_s:
+		flag = True # Inicates strait line or orbital path (true is line, false is orbit)
+		Va_d = 0.0 # Desired airspeed (m/s)
+		r = [0.0, 0.0, 0.0] # Vector to origin of straight line path (m)
+		q = [0.0, 0.0, 0.0] # Unit vector, desired direction of travel for line path
+		c = [0.0, 0.0, 0.0] # Center of orbital path (m)
+		rho = 0.0 # Radius of orbital path (m)
+		lambda_ = 1 # Direction of orbital path (cw is 1, ccw is -1)
 
- 	class params_s:
- 		R_min = 0.0 # Minimum turning radius
+	class params_s:
+		R_min = 0.0 # Minimum turning radius
 
 	class dubin_state: 
 		First = 0
@@ -89,19 +119,13 @@ class path_manager_base:
 		Before_H3 = 4
 		Before_H3_wrong_side = 5
 
-	# Class members
-	_num_waypoints = 0
-	_vehicle_state = FW_State()
-	_fil_state = 0#self.fillet_state.Straight# = 'Straight' # 'Straight' or 'Orbit'
-	_dub_state = 0#self.dubin_state.First # = 'First' #'First', 'Before_H1', 'Before_H1_wrong_side', 'Straight', 'Before_H3', 'Before_H3_wrong_side'
-	_waypoints = [waypoint_temp() for _ in range(SIZE_WAYPOINT_ARRAY)]
-	# params = params_s()
-	# params
 
-
- 	# Class Member Functions
+	# Class Member Functions
 	def waypoint_init(self):
 		# print 'Waypoint Init'
+
+		new_wp = self.waypoint_temp()
+		self._waypoints.append(new_wp)
 		self._waypoints[self._num_waypoints].w0  	 = 0
 		self._waypoints[self._num_waypoints].w1      = 0
 		self._waypoints[self._num_waypoints].w2      = -100
@@ -110,41 +134,50 @@ class path_manager_base:
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
+		new_wp = self.waypoint_temp()
+		self._waypoints.append(new_wp)
 		self._waypoints[self._num_waypoints].w0      = 1000
 		self._waypoints[self._num_waypoints].w1      = 0
 		self._waypoints[self._num_waypoints].w2      = -100
-		self._waypoints[self._num_waypoints].chi_d     = 0.5#-9993
+		self._waypoints[self._num_waypoints].chi_d     = 0.0#-9993
 		self._waypoints[self._num_waypoints].chi_valid = True
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
-		self._waypoints[self._num_waypoints].w0      = 1000
-		self._waypoints[self._num_waypoints].w1      = 1000
+		new_wp = self.waypoint_temp()
+		self._waypoints.append(new_wp)
+		self._waypoints[self._num_waypoints].w0      = 2000
+		self._waypoints[self._num_waypoints].w1      = 0
 		self._waypoints[self._num_waypoints].w2      = -100
 		self._waypoints[self._num_waypoints].chi_d     = -0.5#-9994
 		self._waypoints[self._num_waypoints].chi_valid = True
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
-		self._waypoints[self._num_waypoints].w0      = 0
-		self._waypoints[self._num_waypoints].w1      = 1000
+		new_wp = self.waypoint_temp()
+		self._waypoints.append(new_wp)
+		self._waypoints[self._num_waypoints].w0      = 2500
+		self._waypoints[self._num_waypoints].w1      = 500
 		self._waypoints[self._num_waypoints].w2      = -100
 		self._waypoints[self._num_waypoints].chi_d     = 0.0#-9995
 		self._waypoints[self._num_waypoints].chi_valid = True
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
-		self._waypoints[self._num_waypoints].w0      = -1000
-		self._waypoints[self._num_waypoints].w1      = -1000
+		new_wp = self.waypoint_temp()
+		self._waypoints.append(new_wp)
+		self._waypoints[self._num_waypoints].w0      = 3000
+		self._waypoints[self._num_waypoints].w1      = 750
 		self._waypoints[self._num_waypoints].w2      = -100
 		self._waypoints[self._num_waypoints].chi_d     = 0.75#-9996
 		self._waypoints[self._num_waypoints].chi_valid = True
 		self._waypoints[self._num_waypoints].Va_d      = 35
 		self._num_waypoints+=1
 
-		# self.waypointprint()
+		print('Waypoints inititlialized: ')
+		print 'Number of Waypoints: ' + str(len(self._waypoints))
 
-  	def vehicle_state_callback(self, msg):
+	def vehicle_state_callback(self, msg):
 		# print 'Vehicle State Callback'
 		self._vehicle_state = msg
 		inpt = self.input_s() # set inpt to _vehicle_state
@@ -157,9 +190,9 @@ class path_manager_base:
 		outputs = self.manage(self.params, inpt, outputs) 		# call manager
 		self.current_path_publisher(outputs) 	# publish current_path from outputs
 
-  	def new_waypoint_callback(self, msg):
-  		# print 'New Waypoint Callback'
-  		# add new waypoint to self._waypoint array or waypoints
+	def new_waypoint_callback(self, msg):
+		# print 'New Waypoint Callback'
+		# add new waypoint to self._waypoint array or waypoints
 		self._waypoints[self._num_waypoints].w0      = msg.w[0]
 		self._waypoints[self._num_waypoints].w1      = msg.w[1]
 		self._waypoints[self._num_waypoints].w2      = msg.w[2]
@@ -183,6 +216,15 @@ class path_manager_base:
 
 		self._current_path_pub.publish(current_path) # publish
 
+		current_wp = FW_Waypoint()
+		current_wp.w[0] = self._waypoints[self.index_a].w0
+		current_wp.w[1] = self._waypoints[self.index_a].w1
+		current_wp.w[2] = self._waypoints[self.index_a].w2
+		current_wp.chi_d = self._waypoints[self.index_a].chi_d
+		current_wp.chi_valid = self._waypoints[self.index_a].chi_valid
+		current_wp.Va_d= self._waypoints[self.index_a].Va_d
+		self._current_wp_pub.publish(current_wp) # publish waypoint header toward
+
 	# Classes in class
 	class dubinspath_s:
 		ps = np.array([0.0, 0.0, 0.0]) 	# start position
@@ -200,9 +242,6 @@ class path_manager_base:
 		w2 = np.array([0.0, 0.0, 0.0]) 	# vector defining half plane H2
 		w3 = np.array([0.0, 0.0, 0.0])	# vector defining half plane H3
 		q3 = np.array([0.0, 0.0, 0.0])	# unit vector defining direction of half plane H3
-
-	# Member objects
-	_dubinspath = dubinspath_s()
 	
 
 	# functions
@@ -222,11 +261,15 @@ class path_manager_base:
 			output.c[2] = 0.0
 			output.rho = 0
 			output.lambda_ = 0
+			rospy.logwarn('ERROR: less than 2 waypoints!!!')
 		else:
-
-			if (self._waypoints[self.index_a].chi_valid): 
+			# print self.index_a
+			if (self._waypoints[self.index_a].chi_valid) and (self.index_a > 1): 
 				# print 'Manage -- Dubins'
 				output = self.manage_dubins(params, inpt, output)
+			elif (self._waypoints[self.index_a].chi_valid):
+				# print 'Manage -- Line'
+				output = self.manage_line(params, inpt, output)
 			else:
 				# print 'Manage -- Line'
 				# output = self.manage_line(params, inpt, output)
@@ -241,143 +284,72 @@ class path_manager_base:
 	def manage_dubins(self, params, inpt, output):
 		# print 'Def Manage Dubins'
 
-		p = np.array([inpt.pn, inpt.pe, -inpt.h])
+		pos = np.array([inpt.pn, inpt.pe, -inpt.h])
 
 		R_min = params.R_min
 
-		print self._dub_state
+		assert (self._num_waypoints >= 3), "insufficient waypoints"
 
-		if (self._dub_state == self.dubin_state.First):
-			self.dubinsParameters(self._waypoints[0], self._waypoints[1], R_min)
-			output.flag = False
-			output.Va_d = self._waypoints[self.index_a].Va_d;
-			output.r[0] = 0
-			output.r[1] = 0
-			output.r[2] = 0
-			output.q[0] = 0
-			output.q[1] = 0
-			output.q[2] = 0
-			output.c[0] = self._dubinspath.cs[0]
-			output.c[1] = self._dubinspath.cs[1]
-			output.c[2] = self._dubinspath.cs[2]
-			output.rho = self._dubinspath.R
-			output.lambda_ = self._dubinspath.lams
-			if(self.dot((p - self._dubinspath.w1), self._dubinspath.q1) >= 0): # start in H1
-				self._dub_state = self.dubin_state.Before_H1_wrong_side
-			else:
-				self._dub_state = self.dubin_state.Before_H1
+		now = self._waypoints[self.index_a]
+		past = self.waypoint_temp()
 
-		elif (self._dub_state == self.dubin_state.Before_H1):
-			output.flag = False
-			output.Va_d = self._waypoints[self.index_a].Va_d
-			output.r[0] = 0
-			output.r[1] = 0
-			output.r[2] = 0
-			output.q[0] = 0
-			output.q[1] = 0
-			output.q[2] = 0
-			output.c[0] = self._dubinspath.cs[0]
-			output.c[1] = self._dubinspath.cs[1]
-			output.c[2] = self._dubinspath.cs[2]
-			output.rho = self._dubinspath.R
-			output.lambda_ = self._dubinspath.lams
-			if(self.dot(p - self._dubinspath.w1, self._dubinspath.q1) >= 0): # entering H1
-				self._dub_state = self.dubin_state.Straight
+		if (self.index_a == 0):
+			past = self._waypoints[self._num_waypoints]
+		else:
+			past = self._waypoints[self.index_a - 1]
 
-		elif (self._dub_state == self.dubin_state.Before_H1_wrong_side):
-			output.flag = False
-			output.Va_d = self._waypoints[self.index_a].Va_d
-			output.r[0] = 0
-			output.r[1] = 0
-			output.r[2] = 0
-			output.q[0] = 0
-			output.q[1] = 0
-			output.q[2] = 0
-			output.c[0] = self._dubinspath.cs[0]
-			output.c[1] = self._dubinspath.cs[1]
-			output.c[2] = self._dubinspath.cs[2]
-			output.rho = self._dubinspath.R
-			output.lambda_ = self._dubinspath.lams
-			if(self.dot(p - self._dubinspath.w1, self._dubinspath.q1) < 0): # exit H1
-				self._dub_state = self.dubin_state.Before_H1
+		w_past = np.array([past.w0, past.w1, past.w2])
+		chi_past = past.chi_d
 
-		elif (self._dub_state == self.dubin_state.Straight):
-			output.flag = True
-			output.Va_d = self._waypoints[self.index_a].Va_d
-			output.r[0] = self._dubinspath.w1[0]
-			output.r[1] = self._dubinspath.w1[1]
-			output.r[2] = self._dubinspath.w1[2]
-			output.q[0] = self._dubinspath.q1[0]
-			output.q[1] = self._dubinspath.q1[1]
-			output.q[2] = self._dubinspath.q1[2]
-			output.c[0] = 1
-			output.c[1] = 1
-			output.c[2] = 1
-			output.rho = 1
-			output.lambda_ = 1
-			if(self.dot(p - self._dubinspath.w2, self._dubinspath.q1) >= 0): # entering H2
-				if(self.dot(p - self._dubinspath.w3, self._dubinspath.q3) >= 0): # start in H3
-					self._dub_state = self.dubin_state.Before_H3_wrong_side
-				else:
-					self._dub_state = self.dubin_state.Before_H3
+		w_now = np.array([now.w0, now.w1, now.w2])
+		chi_now = now.chi_d
 
-		elif (self._dub_state == self.dubin_state.Before_H3):
-			output.flag = False
-			output.Va_d = self._waypoints[self.index_a].Va_d
-			output.r[0] = 0
-			output.r[1] = 0
-			output.r[2] = 0
-			output.q[0] = 0
-			output.q[1] = 0
-			output.q[2] = 0
-			output.c[0] = self._dubinspath.ce[0]
-			output.c[1] = self._dubinspath.ce[1]
-			output.c[2] = self._dubinspath.ce[2]
-			output.rho = self._dubinspath.R
-			output.lambda_ = self._dubinspath.lame
-			if(self.dot(p - self._dubinspath.w3, self._dubinspath.q3) >= 0): # entering H3
-				# increase the waypoint pointer
-				b = self.waypoint_temp()
+		[L, cs, lam_s, ce, lam_e, z1, q1, z2, z3, q3] = self.dubinsParameters(w_past, chi_past, w_now, chi_now, R_min)
+		r = 'r'
+		q = 'q'
+		c = 'c'
+		lam = 'lam'
+		flag = 'flag'
+		if self.state == 1:
+			flag = False
+			c = cs
+			lam = lam_s
+			if crossed_plane(z1, -q1, pos):
+				self.state = 2
+		if self.state == 2:
+			flag = False
+			c = cs
+			lam = lam_s
+			if crossed_plane(z1, q1, pos):
+				self.state = 3
+		if self.state == 3:
+			flag = True
+			r = z1
+			q = q1
+			if crossed_plane(z2, q1, pos):
+				self.state = 4
+		if self.state == 4:
+			flag = False
+			c = ce
+			lam = lam_e
+			if crossed_plane(z3, -q3, pos):
+				self.state = 5
+		if self.state == 5:
+			flag = False
+			c = ce
+			lam = lam_e
+			if crossed_plane(z3, q3, pos):
+				self.state = 1
+				self.waypoint_counter += 1
 
-				if(self.index_a == (self._num_waypoints-1)):
-					self.index_a = 0
-					a = self._waypoints[self.index_a]
-					b = self._waypoints[1]
-				elif(self.index_a == (self._num_waypoints-2)):
-					self.index_a += 1
-					a = self._waypoints[self.index_a]
-					b = self._waypoints[0]
-				else:
-					self.index_a += 1
-					a = self._waypoints[self.index_a]
-					b = self._waypoints[self.index_a + 1]
-					
-				# plan new Dubin's path to next waypoint configuration
-				self.dubinsParameters(a, b, R_min)
-
-				#start new path
-				if(self.dot(p - self._dubinspath.w1, self._dubinspath.q1) >= 0): # start in H1
-					self._dub_state = self.dubin_state.Before_H1_wrong_side
-				else:
-					self._dub_state = self.dubin_state.Before_H1
-				
-
-		elif (self._dub_state == self.dubin_state.Before_H3_wrong_side):
-			output.flag = False
-			output.Va_d = self._waypoints[self.index_a].Va_d
-			output.r[0] = 0
-			output.r[1] = 0
-			output.r[2] = 0
-			output.q[0] = 0
-			output.q[1] = 0
-			output.q[2] = 0
-			output.c[0] = self._dubinspath.ce[0]
-			output.c[1] = self._dubinspath.ce[1]
-			output.c[2] = self._dubinspath.ce[2]
-			output.rho = self._dubinspath.R
-			output.lambda_ = self._dubinspath.lame
-			if(self.dot(p - self._dubinspath.w3, self._dubinspath.q3) < 0): # exit H3
-				self._dub_state = self.dubin_state.Before_H1
+		# return [flag, self.vg_des, r, q, c, self.t_rad, lam]
+		output.flag = flag # Inicates strait line or orbital path (true is line, false is orbit)
+		output.Va_d = now.Va_d # Desired airspeed (m/s)
+		output.r = r # Vector to origin of straight line path (m)
+		output.q = q # Unit vector, desired direction of travel for line path
+		output.c = c # Center of orbital path (m)
+		output.rho = R_min # Radius of orbital path (m)
+		output.lambda_ = lam # Direction of orbital path (cw is 1, ccw is -1)
 
 		return output
 
@@ -409,122 +381,128 @@ class path_manager_base:
 		temp[2] = v[2]/norm
 		return temp#v/norm
 
-	def dubinsParameters(self, start_node, end_node, R):
-		ell = sqrt((start_node.w0 - end_node.w0)*(start_node.w0 - end_node.w0) + (start_node.w1 - end_node.w1)*(start_node.w1 - end_node.w1))
-		if (ell < 2*R):
-			print 'The distance between nodes must be larger than 2R'
+	def dubinsParameters(self, ps, chi_s, pe, chi_e, R):
+		# ps = np.array([start_node.w0, start_node.w1, start_node.w2])
+		# chi_s = start_node.chi_d
+		# pe = np.array([end_node.w0, end_node.w1, end_node.w2])
+		# chi_e = end_node.chi_d
+
+		dist = np.linalg.norm(ps - pe)
+		e1 = np.array([[1], [0], [0]])
+
+		assert (dist >= 3 * R), "waypoints are too close together!"
+		# assert (self.fillet_rad > minTurnRad)
+		crs = ps + R * np.dot(self.rotz(np.pi/2), np.array([[cos(chi_s)], [sin(chi_s)], [0]]))
+		cls = ps + R * np.dot(self.rotz(-np.pi/2), np.array([[cos(chi_s)], [sin(chi_s)], [0]]))
+		cre = pe + R * np.dot(self.rotz(np.pi/2), np.array([[cos(chi_e)], [sin(chi_e)], [0]]))
+		cle = pe + R * np.dot(self.rotz(-np.pi/2), np.array([[cos(chi_e)], [sin(chi_e)], [0]]))
+
+		#compute length for case 1 rsr
+		ang = atan2(cre.item(1)-crs.item(1), cre.item(0)-crs.item(0))
+		L1 = np.linalg.norm(crs-cre) + R * mod2pi(2 * np.pi + mod2pi(ang - np.pi / 2) - mod2pi(chi_s - np.pi / 2)) \
+			 + R * mod2pi(2 * np.pi + mod2pi(chi_e - np.pi / 2) - mod2pi(ang - np.pi / 2))
+
+		# Compute length for case 2 rsl
+		ang = atan2(cle.item(1)-crs.item(1), cle.item(0)-crs.item(0))
+		l = np.linalg.norm(cle - crs)
+		ang2 = ang - np.pi / 2 + asin((2 * R) / l)
+		L2 = np.sqrt(l ** 2 - 4 * R ** 2) + R * mod2pi(2 * np.pi + mod2pi(ang2) - mod2pi(chi_s - np.pi / 2)) \
+			 + R * mod2pi(2 * np.pi + mod2pi(ang2 + np.pi) - mod2pi(chi_e + np.pi / 2))
+
+		# Compute length for case 3 lsr
+		ang = atan2(cre.item(1)-cls.item(1), cre.item(0)-cls.item(0))
+		l = np.linalg.norm(cre-cls)
+		ang2 = acos((2 * R) / l)
+		L3 = np.sqrt(l ** 2 - 4 * R ** 2) + R * mod2pi(2 * np.pi + mod2pi(chi_s + np.pi / 2) - mod2pi(ang + ang2)) \
+			 + R * mod2pi(2 * np.pi + mod2pi(chi_e - np.pi / 2) - mod2pi(ang + ang2 - np.pi))
+
+		# Compute length for case 4 lsl
+		ang = atan2(cle.item(1)-cls.item(1), cle.item(0)-cls.item(0))
+		L4 = np.linalg.norm(cls-cle) + R * mod2pi(2 * np.pi + mod2pi(chi_s + np.pi / 2) - mod2pi(ang + np.pi / 2)) \
+			 + R * mod2pi(2 * np.pi + mod2pi(ang + np.pi / 2) - mod2pi(chi_e + np.pi / 2))
+
+		lengths = [L1, L2, L3, L4]
+		if min(lengths) == L1:
+			cs = crs
+			lam_s = 1
+			ce = cre
+			lam_e = 1
+			q1 = (ce - cs) / np.linalg.norm(ce - cs)
+			z1 = cs + R * np.dot(self.rotz(-np.pi/2), q1)
+			z2 = ce + R * np.dot(self.rotz(-np.pi/2), q1)
+
+		elif min(lengths) == L2:
+			cs = crs
+			lam_s = 1
+			ce = cle
+			lam_e = -1
+			l = np.linalg.norm(ce - cs)
+			ang = atan2(ce.item(1) - cs.item(1), ce.item(0) - cs.item(0))
+			ang2 = ang - np.pi/2 + asin((2 * R) / l)
+			q1 = np.dot(self.rotz(ang2 + np.pi/2), e1)
+			z1 = cs + R * np.dot(self.rotz(ang2), e1)
+			z2 = ce + R * np.dot(self.rotz(ang2 + np.pi), e1)
+
+		elif min(lengths) == L3:
+			cs = cls
+			lam_s = -1
+			ce = cre
+			lam_e = 1
+			l = np.linalg.norm(ce - cs)
+			ang = atan2(ce.item(1) - cs.item(1), ce.item(0) - cs.item(0))
+			ang2 = acos((2 * R) / l)
+			q1 = np.dot(self.rotz(ang + ang2 - np.pi/2), e1)
+			z1 = cs + R * np.dot(self.rotz(ang + ang2), e1)
+			z2 = ce + R * np.dot(self.rotz(ang + ang2 -np.pi), e1)
+
+		# elif min(lengths) == L4:
 		else:
-			print('dubinsParams')
-			self._dubinspath.ps[0] = start_node.w0
-			self._dubinspath.ps[1] = start_node.w1
-			self._dubinspath.ps[2] = start_node.w2
-			self._dubinspath.chis = start_node.chi_d
-			self._dubinspath.pe[0] = end_node.w0
-			self._dubinspath.pe[1] = end_node.w1
-			self._dubinspath.pe[2] = end_node.w2
-			self._dubinspath.chie = end_node.chi_d
+			cs = cls
+			lam_s = -1
+			ce = cle
+			lam_e = -1
+			q1 = (ce - cs) / np.linalg.norm(ce - cs)
+			z1 = cs + R * np.dot(self.rotz(np.pi/2), q1)
+			z2 = ce + R * np.dot(self.rotz(np.pi/2), q1)
 
-			crs = self._dubinspath.ps
-			crs[0] += R*(cos(M_PI_2_F)*cos(self._dubinspath.chis) - sin(M_PI_2_F)*sin(self._dubinspath.chis))
-			crs[1] += R*(sin(M_PI_2_F)*cos(self._dubinspath.chis) + cos(M_PI_2_F)*sin(self._dubinspath.chis))
-			clss = self._dubinspath.ps
-			clss[0] += R*(cos(-M_PI_2_F)*cos(self._dubinspath.chis) - sin(-M_PI_2_F)*sin(self._dubinspath.chis))
-			clss[1] += R*(sin(-M_PI_2_F)*cos(self._dubinspath.chis) + cos(-M_PI_2_F)*sin(self._dubinspath.chis))
-			cre = self._dubinspath.pe
-			cre[0] += R*(cos(M_PI_2_F)*cos(self._dubinspath.chie) - sin(M_PI_2_F)*sin(self._dubinspath.chie))
-			cre[1] += R*(sin(M_PI_2_F)*cos(self._dubinspath.chie) + cos(M_PI_2_F)*sin(self._dubinspath.chie))
-			cle = self._dubinspath.pe
-			cle[0] += R*(cos(-M_PI_2_F)*cos(self._dubinspath.chie) - sin(-M_PI_2_F)*sin(self._dubinspath.chie))
-			cle[1] += R*(sin(-M_PI_2_F)*cos(self._dubinspath.chie) + cos(-M_PI_2_F)*sin(self._dubinspath.chie))
+		z3 = pe
+		q3 = np.dot(self.rotz(chi_e), e1)
 
-			# compute L1
-			theta = atan2(cre[1] - crs[1], cre[0] - crs[0])
+		print 'cs'
+		print cs
+		print 'lam_s'
+		print lam_s
+		print 'ce'
+		print lam_e
+		print 'z1'
+		print z1
+		print 'q1'
+		print q1
+		print 'z2'
+		print z2
+		print 'z3'
+		print z3
+		print 'q3'
+		print q3
 
-			L1 = len(crs - cre) + R*self.mo(2*M_PI_F + self.mo(theta - M_PI_2_F) - self.mo(self._dubinspath.chis - M_PI_2_F)) + \
-                R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chie - M_PI_2_F) - self.mo(theta - M_PI_2_F))
+		self._dubinspath.ps = ps 	# start position
+		self._dubinspath.chis = chi_s						# start course angle
+		self._dubinspath.pe = pe	# End Position
+		self._dubinspath.chie = chi_e						# end course angle
+		self._dubinspath.R = R							# turn radius
+		self._dubinspath.L = min(lengths)							# length of path
+		self._dubinspath.cs = cs	# center of the start circle
+		self._dubinspath.lams = lam_s						# direction of the start circle
+		self._dubinspath.ce = ce	# center of the end circle
+		self._dubinspath.lame = lam_e						# direction of the end circle
+		self._dubinspath.w1 = z1	# vector defining half plane H1
+		self._dubinspath.q1 = q1	# unit vector along straight line path
+		self._dubinspath.w2 = z2 	# vector defining half plane H2
+		self._dubinspath.w3 = z3	# vector defining half plane H3
+		self._dubinspath.q3 = q3	# unit vector defining direction of half plane H3
+		rospy.logwarn('INFO: Dubins params updated')
 
-            # compute L2
-			ell = len(cle - crs)
-			theta = atan2(cle[1] - crs[1], cle[0] - crs[0])
-			if(2*R/ell > 1.0 or 2*R/ell < -1.0):
-				L2 = 9999.0
-			else:
-				theta2 = theta - M_PI_2_F + asin(2*R/ell)
-				L2 = sqrt(ell*ell - 4*R*R) + R*self.mo(2*M_PI_F + self.mo(theta2) - self.mo(self._dubinspath.chis - M_PI_2_F)) + \
-				   R*self.mo(2*M_PI_F + self.mo(theta2 + M_PI_F) - self.mo(self._dubinspath.chie + M_PI_2_F))
-
-		    # compute L3
-			ell = len(cre - clss)
-			theta = atan2(cre[1] - clss[1], cre[0] - clss[0])
-			if (2*R/ell > 1.0 or 2*R/ell < -1.0):
-				L3 = 9999.0
-			else:
-				theta2 = acos(2*R/ell)
-				L3 = sqrt(ell*ell - 4*R*R) + R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chis + M_PI_2_F) - self.mo(theta + theta2)) + \
-			         R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chie - M_PI_2_F) - self.mo(theta + theta2 - M_PI_F))
-
-			# compute L4
-			theta = atan2(cle[1]-clss[1],cle[0]-clss[0])
-			L4 = len(clss - cle) + R*self.mo(2*M_PI_F + self.mo(self._dubinspath.chis + M_PI_2_F) - self.mo(theta + M_PI_2_F)) + \
-			     R*self.mo(2*M_PI_F + self.mo(theta + M_PI_2_F) - self.mo(self._dubinspath.chie + M_PI_2_F))
-
-			# L = minimum distance
-			idx = 1
-			self._dubinspath.L = L1
-			if (L2 < self._dubinspath.L):
-				self._dubinspath.L = L2
-				idx = 2
-			if (L3 < self._dubinspath.L):
-				self._dubinspath.L = L3
-				idx = 3
-			if (L4 < self._dubinspath.L):
-				self._dubinspath.L = L4
-				idx = 4
-
-			e1 = np.array([1.0, 0.0, 0.0])
-
-			# cpp = switch statement here
-			if idx == 1:
-				self._dubinspath.cs = crs
-				self._dubinspath.lams = 1
-				self._dubinspath.ce = cre
-				self._dubinspath.lame = 1
-				self._dubinspath.q1 = self.normalize(cre - crs)
-				self._dubinspath.w1 = self._dubinspath.cs + np.dot(self.rotz(-M_PI_2_F),self._dubinspath.q1)*R
-				self._dubinspath.w2 = self._dubinspath.ce + np.dot(self.rotz(-M_PI_2_F),self._dubinspath.q1)*R
-			elif idx == 2:
-				self._dubinspath.cs = crs
-				self._dubinspath.lams = 1
-				self._dubinspath.ce = cle
-				self._dubinspath.lame = -1
-				ell = len(cle - crs)
-				theta = atan2(cle(1) - crs(1), cle(0) - crs(0))
-				theta2 = theta - M_PI_2_F + asin(2*R/ell)
-				self._dubinspath.q1 = np.dot(self.rotz(theta2 + M_PI_2_F),e1)
-				self._dubinspath.w1 = self._dubinspath.cs + np.dot(self.rotz(theta2),e1)*R
-				self._dubinspath.w2 = self._dubinspath.ce + np.dot(self.rotz(theta2 + M_PI_F),e1)*R
-			elif idx == 3:
-				self._dubinspath.cs = clss
-				self._dubinspath.lams = -1
-				self._dubinspath.ce = cre
-				self._dubinspath.lame = 1
-				ell = len(cre - clss)
-				theta = atan2(cre(1) - clss(1), cre(0) - clss(0))
-				theta2 = acos(2*R/ell)
-				self._dubinspath.q1 = np.dot(self.rotz(theta + theta2 - M_PI_2_F),e1)
-				self._dubinspath.w1 = self._dubinspath.cs + np.dot(self.rotz(theta + theta2),e1)*R
-				self._dubinspath.w2 = self._dubinspath.ce + np.dot(self.rotz(theta + theta2 - M_PI_F),e1)*R
-			elif idx == 4:
-				self._dubinspath.cs = clss
-				self._dubinspath.lams = -1
-				self._dubinspath.ce = cle
-				self._dubinspath.lame = -1
-				self._dubinspath.q1 = self.normalize(cle - clss)
-				self._dubinspath.w1 = self._dubinspath.cs + np.dot(self.rotz(M_PI_2_F),self._dubinspath.q1)*R
-				self._dubinspath.w2 = self._dubinspath.ce + np.dot(self.rotz(M_PI_2_F),self._dubinspath.q1)*R
-			self._dubinspath.w3 = self._dubinspath.pe
-			self._dubinspath.q3 = np.dot(self.rotz(self._dubinspath.chie),e1)
-			self._dubinspath.R = R
+		return [min(lengths), cs, lam_s, ce, lam_e, z1, q1, z2, z3, q3]
 
 	def dot(self, first, second):
 		# first and second are np.arrays of size 3
@@ -540,6 +518,64 @@ class path_manager_base:
 			print self._waypoints[_].chi_d
 			print self._waypoints[_].chi_valid
 			print self._waypoints[_].Va_d
+
+	def manage_line(self, params, inpt, output):
+		print 'Def Manage Line'
+		# print params.R_min
+		p = np.array([inpt.pn, inpt.pe, -inpt.h])
+
+		b = self._waypoints[self.index_a]
+		a = self.waypoint_temp()
+		c = self.waypoint_temp()
+
+		if (self.index_a == (self._num_waypoints)):
+			a = self._waypoints[self.index_a-1]
+			c = self._waypoints[0]
+		elif (self.index_a == 0):
+			a = self._waypoints[self._num_waypoints]
+			c = self._waypoints[self.index_a + 1]
+		else:
+			a = self._waypoints[self.index_a - 1]
+			c = self._waypoints[self.index_a + 1]
+		# print 'waypoint a'
+		# print a
+		# print 'waypoint b'
+		# print b
+		# print 'waypoint c'
+		# print c
+
+		w_im1 = np.array([a.w0,a.w1,a.w2])
+		w_i = np.array([b.w0,b.w1,b.w2])
+		w_ip1 = np.array([c.w0,c.w1,c.w2])
+
+		output.flag = True
+		output.Va_d = a.Va_d
+		output.r = [w_im1[0],w_im1[1],w_im1[2]]
+
+		q_im1 = self.normalize(w_i - w_im1)
+
+		q_i = self.normalize(w_ip1 - w_i)
+		output.q = [q_im1[0],q_im1[1],q_im1[2]]
+		output.c = [1, 1, 1]
+		output.rho = 1
+		output.lambda_ = 1
+
+		n_i = self.normalize(q_im1 + q_i)
+		if (self.dot((p - w_i),n_i) > 0.0):
+			if (self.index_a == (self._num_waypoints - 1)):
+				self.index_a = 0
+			else:
+				self.index_a += 1
+
+		return output
+
+	def crossed_plane(plane_point, normal, loc):
+		crossed = False
+		point_diff = loc - plane_point
+		dot_prod = np.dot(point_diff.reshape((1, 3)), normal)
+		if dot_prod > 0:
+			crossed = True
+		return crossed
 
 ##############################
 #### Main Function to Run ####
